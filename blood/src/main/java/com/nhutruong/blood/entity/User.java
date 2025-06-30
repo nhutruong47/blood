@@ -7,6 +7,10 @@ import lombok.NoArgsConstructor;
 @Entity
 @Data
 @NoArgsConstructor
+@Table(name = "users") // => ánh xạ bảng "users"
+
+
+
 public class User {
 
     @Id

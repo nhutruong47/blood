@@ -18,17 +18,10 @@ public class AuthController {
 
     @PostMapping("/api/register")
     public String register(@RequestBody User user) {
-        user.setRole(Role.DONOR); // Gán theo enum
+        user.setRole(Role.DONOR); // Gán role mặc định là DONOR
         authService.register(user);
         return "Đăng ký thành công với vai trò hiến máu (donor)";
     }
-
-//    @PostMapping("/api/login")
-//    public String login(@RequestBody User user, HttpSession session) {
-//        User loginUser = authService.login(user.getEmail(), user.getPassword());
-//        session.setAttribute("currentUser", loginUser);
-//        return "Đăng nhập thành công";
-//    }
 
     @PostMapping("/api/login")
     public Map<String, Object> login(@RequestBody User user, HttpSession session) {
@@ -49,15 +42,11 @@ public class AuthController {
             };
             response.put("redirect", redirectUrl);
         } catch (Exception e) {
-            response.put("message", "Sai email hoặc mật khẩu");
+            response.put("message", e.getMessage()); // chi tiết lỗi (email không tồn tại hoặc sai password)
         }
 
         return response;
     }
-
-
-
-
 
     @GetMapping("/api/me")
     public Object me(HttpSession session) {

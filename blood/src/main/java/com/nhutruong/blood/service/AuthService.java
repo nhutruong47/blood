@@ -18,8 +18,20 @@ public class AuthService {
         }
 
         User user = userRepository.findByEmail(email);
-        if (user == null || !password.equals(user.getPassword())) {
-            throw new CustomException("Sai email hoặc mật khẩu");
+
+        // Debug: In ra thông tin để kiểm tra
+        System.out.println("Email nhập vào: " + email);
+        System.out.println("Password nhập vào: " + password);
+
+        if (user == null) {
+            throw new CustomException("Không tìm thấy email trong hệ thống");
+        }
+
+        System.out.println("Password trong database: " + user.getPassword());
+
+        // So sánh password (chú ý: nếu có mã hóa thì thay đoạn này)
+        if (!password.equals(user.getPassword())) {
+            throw new CustomException("Mật khẩu không đúng");
         }
 
         return user;
@@ -28,10 +40,10 @@ public class AuthService {
     public void register(User user) {
         String email = user.getEmail();
         String password = user.getPassword();
-        String confirmPassword = user.getConfirmPassword(); // bạn cần thêm field này trong User nếu chưa có
+        String confirmPassword = user.getConfirmPassword(); // cần có trường confirmPassword trong entity
         String firstName = user.getFirstName();
         String lastName = user.getLastName();
-        String bloodGroup = user.getBloodGroup(); // hoặc Enum nếu có
+        String bloodGroup = user.getBloodGroup();
 
         if (email == null || email.isEmpty() ||
                 password == null || password.isEmpty() ||
@@ -50,7 +62,9 @@ public class AuthService {
             throw new CustomException("Email đã được sử dụng");
         }
 
+        // Nếu bạn muốn mã hóa mật khẩu thì thêm ở đây (ví dụ với BCrypt)
+        // user.setPassword(new BCryptPasswordEncoder().encode(password));
+
         userRepository.save(user);
     }
-
 }
