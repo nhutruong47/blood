@@ -3,7 +3,7 @@ package com.nhutruong.blood.controller;
 import com.nhutruong.blood.entity.BloodRequest;
 import com.nhutruong.blood.entity.Role;
 import com.nhutruong.blood.entity.User;
-import com.nhutruong.blood.service.BloodRequestService;
+import com.nhutruong.blood.service.imple.BloodRequestServiceImple;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 public class BloodRequestController {
 
     @Autowired
-    private BloodRequestService service;
+    private BloodRequestServiceImple service;
 
     @PostMapping("/api/request-blood")
     public String requestBlood(@RequestBody BloodRequest request, HttpSession session) {

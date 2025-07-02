@@ -2,7 +2,7 @@ package com.nhutruong.blood.controller;
 
 import com.nhutruong.blood.entity.DonationRegistration;
 import com.nhutruong.blood.entity.User;
-import com.nhutruong.blood.service.DonationService;
+import com.nhutruong.blood.service.imple.DonationServiceImple;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 public class DonationController {
 
     @Autowired
-    private DonationService donationService;
+    private DonationServiceImple donationService;
 
     @PostMapping("/api/donate/register")
     public String registerDonation(@RequestBody DonationRegistration registration, HttpSession session) {

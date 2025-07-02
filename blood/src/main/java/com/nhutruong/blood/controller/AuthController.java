@@ -2,7 +2,7 @@ package com.nhutruong.blood.controller;
 
 import com.nhutruong.blood.entity.Role;
 import com.nhutruong.blood.entity.User;
-import com.nhutruong.blood.service.AuthService;
+import com.nhutruong.blood.service.imple.AuthServiceImple;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -14,7 +14,7 @@ import java.util.Map;
 public class AuthController {
 
     @Autowired
-    private AuthService authService;
+    private AuthServiceImple authService;
 
     @PostMapping("/api/register")
     public String register(@RequestBody User user) {
