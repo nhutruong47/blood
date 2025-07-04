@@ -1,9 +1,11 @@
 package com.nhutruong.blood.controller;
 
 import com.nhutruong.blood.entity.BloodRequest;
+import com.nhutruong.blood.entity.DonationRegistration;
 import com.nhutruong.blood.entity.Role;
 import com.nhutruong.blood.entity.User;
 import com.nhutruong.blood.repository.BloodRequestRepository;
+import com.nhutruong.blood.repository.DonationRegistrationRepository;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -48,5 +50,18 @@ public class StaffController {
         requestRepo.save(request);
 
         return "Đã xử lý yêu cầu thành công";
+    }
+
+    @Autowired
+    private DonationRegistrationRepository donationRepo;
+    // API: Lấy danh sách donor đã đăng ký hiến máu
+    @GetMapping("/api/staff/donations")
+    public List<DonationRegistration> getAllDonations(HttpSession session) {
+        User currentUser = (User) session.getAttribute("currentUser");
+        if (currentUser == null || currentUser.getRole() != Role.STAFF) {
+            throw new RuntimeException("Bạn không có quyền truy cập");
+        }
+
+        return donationRepo.findAll();
     }
 }
