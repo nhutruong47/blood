@@ -8,6 +8,7 @@ public class BloodApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(BloodApplication.class, args);
+		System.out.println("helo world");
 	}
 
 }
