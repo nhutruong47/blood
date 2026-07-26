@@ -12,6 +12,7 @@
 	<artifactId>blood</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>blood</name>
+	<!-- Added documentation for pair and shark -->
 	<description>Demo project for Spring Boot</description>
 	<url/>
 	<licenses>
