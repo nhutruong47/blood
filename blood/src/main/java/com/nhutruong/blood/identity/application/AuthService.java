@@ -8,6 +8,11 @@ import com.nhutruong.blood.identity.domain.UserStatus;
 import com.nhutruong.blood.identity.infrastructure.UserRepository;
 import com.nhutruong.blood.shared.exception.BusinessException;
 import com.nhutruong.blood.shared.exception.ErrorCode;
+import com.nhutruong.blood.shared.security.JwtTokenProvider;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -16,10 +21,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuthService {
     private final UserRepository userRepository;
+    private final AuthenticationManager authenticationManager;
+    private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public AuthService(UserRepository userRepository) {
+    public AuthService(UserRepository userRepository, AuthenticationManager authenticationManager, JwtTokenProvider jwtTokenProvider) {
         this.userRepository = userRepository;
+        this.authenticationManager = authenticationManager;
+        this.jwtTokenProvider = jwtTokenProvider;
     }
 
     @Transactional
@@ -45,24 +54,14 @@ public class AuthService {
     }
 
     @Transactional
-    public User login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.email().trim().toLowerCase())
-                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHENTICATED, "Invalid email or password"));
+    public String login(LoginRequest request) {
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.email().trim().toLowerCase(), request.password())
+        );
 
-        if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "Account is not active");
-        }
+        SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        if (!matchesPassword(request.password(), user.getPassword())) {
-            throw new BusinessException(ErrorCode.UNAUTHENTICATED, "Invalid email or password");
-        }
-
-        if (!user.getPassword().startsWith("$2")) {
-            user.setPassword(passwordEncoder.encode(request.password()));
-            userRepository.save(user);
-        }
-
-        return user;
+        return jwtTokenProvider.generateToken(authentication);
     }
 
     public String redirectFor(Role role) {

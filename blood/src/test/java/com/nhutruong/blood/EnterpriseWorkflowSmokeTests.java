@@ -103,7 +103,11 @@ class EnterpriseWorkflowSmokeTests {
                 }
                 """;
 
+        User admin = saveUser("admin@example.com", Role.ADMIN, BloodGroup.O_POSITIVE);
+        String token = tokenFor(admin);
+        
         String response = mockMvc.perform(post("/api/organizations")
+                        .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content(body))
                 .andExpect(status().isOk())
@@ -114,7 +118,8 @@ class EnterpriseWorkflowSmokeTests {
                 .getContentAsString();
 
         Integer id = JsonPath.read(response, "$.data.id");
-        mockMvc.perform(post("/api/organizations/{id}/verify", id))
+        mockMvc.perform(post("/api/organizations/{id}/verify", id)
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("VERIFIED"));
     }
@@ -133,7 +138,11 @@ class EnterpriseWorkflowSmokeTests {
                 }
                 """.formatted(LocalDate.now(), LocalDate.now().plusDays(30));
 
+        User staff = saveUser("staff@example.com", Role.STAFF, BloodGroup.O_POSITIVE);
+        String token = tokenFor(staff);
+
         String response = mockMvc.perform(post("/api/inventory/units")
+                        .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content(createBody))
                 .andExpect(status().isOk())
@@ -144,6 +153,7 @@ class EnterpriseWorkflowSmokeTests {
 
         Integer unitId = JsonPath.read(response, "$.data.id");
         mockMvc.perform(post("/api/inventory/units/{id}/lab-tests", unitId)
+                        .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("""
                                 {
@@ -156,7 +166,8 @@ class EnterpriseWorkflowSmokeTests {
                 .andExpect(jsonPath("$.data.status").value("AVAILABLE"))
                 .andExpect(jsonPath("$.data.labTestResult").value("PASSED"));
 
-        mockMvc.perform(get("/api/inventory/stock"))
+        mockMvc.perform(get("/api/inventory/stock")
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()", greaterThanOrEqualTo(1)));
     }
@@ -176,9 +187,9 @@ class EnterpriseWorkflowSmokeTests {
         unit.setLabTestResult(LabTestResult.PASSED);
         bloodUnitRepository.save(unit);
 
-        MockHttpSession session = sessionFor(hospital);
+        String token = tokenFor(hospital);
         mockMvc.perform(post("/api/emergency-requests")
-                        .session(session)
+                        .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("""
                                 {
@@ -200,9 +211,9 @@ class EnterpriseWorkflowSmokeTests {
         User hospital = saveUser("hospital2@example.com", Role.HOSPITAL, BloodGroup.O_POSITIVE);
         saveUser("donor@example.com", Role.DONOR, BloodGroup.O_POSITIVE);
 
-        MockHttpSession session = sessionFor(hospital);
+        String token = tokenFor(hospital);
         mockMvc.perform(post("/api/emergency-requests")
-                        .session(session)
+                        .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("""
                                 {
@@ -232,9 +243,12 @@ class EnterpriseWorkflowSmokeTests {
         return userRepository.save(user);
     }
 
-    private MockHttpSession sessionFor(User user) {
-        MockHttpSession session = new MockHttpSession();
-        session.setAttribute("currentUser", user);
-        return session;
+    @Autowired
+    private com.nhutruong.blood.shared.security.JwtTokenProvider jwtTokenProvider;
+
+    private String tokenFor(User user) {
+        org.springframework.security.authentication.UsernamePasswordAuthenticationToken authentication =
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
+        return jwtTokenProvider.generateToken(authentication);
     }
 }

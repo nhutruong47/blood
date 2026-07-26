@@ -28,16 +28,22 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpSession session) {
-        User user = authService.login(request);
-        SessionUser.store(session, user);
-        LoginResponse response = new LoginResponse(CurrentUserResponse.from(user), authService.redirectFor(user.getRole()));
+    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+        String token = authService.login(request);
+        
+        // Cần truy vấn lại user từ SecurityContextHolder hoặc AuthService nếu cần thông tin chi tiết.
+        // Tạm thời để đơn giản, ta sẽ gọi userRepository hoặc sửa AuthService trả về một đối tượng gộp.
+        // Tuy nhiên AuthService.login trả về String token. Vậy ta nên trả về LoginResponse với token.
+        // Để không phải gọi lại DB, ta sẽ dùng User object từ SecurityContext
+        
+        User user = (User) org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        LoginResponse response = new LoginResponse(token, CurrentUserResponse.from(user), authService.redirectFor(user.getRole()));
         return ApiResponse.success("Login successful", response);
     }
 
     @GetMapping("/me")
-    public ApiResponse<CurrentUserResponse> me(HttpSession session) {
-        User user = SessionUser.requireAuthenticated(session);
+    public ApiResponse<CurrentUserResponse> me() {
+        User user = (User) org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return ApiResponse.success(CurrentUserResponse.from(user));
     }
 

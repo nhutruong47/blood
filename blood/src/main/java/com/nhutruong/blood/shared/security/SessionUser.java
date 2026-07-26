@@ -17,8 +17,15 @@ public final class SessionUser {
     }
 
     public static User optional(HttpSession session) {
-        Object value = session.getAttribute(CURRENT_USER);
-        return value instanceof User user ? user : null;
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof User user) {
+            return user;
+        }
+        if (session != null) {
+            Object value = session.getAttribute(CURRENT_USER);
+            return value instanceof User user ? user : null;
+        }
+        return null;
     }
 
     public static User requireAuthenticated(HttpSession session) {
