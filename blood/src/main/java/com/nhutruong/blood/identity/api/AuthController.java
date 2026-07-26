@@ -12,13 +12,20 @@ import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
+import com.nhutruong.blood.identity.application.RefreshTokenService;
+import com.nhutruong.blood.shared.security.JwtTokenProvider;
+
 @RestController
 @RequestMapping("/api")
 public class AuthController {
     private final AuthService authService;
+    private final RefreshTokenService refreshTokenService;
+    private final JwtTokenProvider jwtTokenProvider;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, RefreshTokenService refreshTokenService, JwtTokenProvider jwtTokenProvider) {
         this.authService = authService;
+        this.refreshTokenService = refreshTokenService;
+        this.jwtTokenProvider = jwtTokenProvider;
     }
 
     @PostMapping("/register")
@@ -30,15 +37,27 @@ public class AuthController {
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         String token = authService.login(request);
-        
-        // Cần truy vấn lại user từ SecurityContextHolder hoặc AuthService nếu cần thông tin chi tiết.
-        // Tạm thời để đơn giản, ta sẽ gọi userRepository hoặc sửa AuthService trả về một đối tượng gộp.
-        // Tuy nhiên AuthService.login trả về String token. Vậy ta nên trả về LoginResponse với token.
-        // Để không phải gọi lại DB, ta sẽ dùng User object từ SecurityContext
-        
         User user = (User) org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        LoginResponse response = new LoginResponse(token, CurrentUserResponse.from(user), authService.redirectFor(user.getRole()));
+        com.nhutruong.blood.identity.domain.RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
+        LoginResponse response = new LoginResponse(token, refreshToken.getToken(), CurrentUserResponse.from(user), authService.redirectFor(user.getRole()));
         return ApiResponse.success("Login successful", response);
+    }
+
+    @PostMapping("/refresh")
+    public ApiResponse<LoginResponse> refreshtoken(@Valid @RequestBody com.nhutruong.blood.identity.application.dto.TokenRefreshRequest request) {
+        String requestRefreshToken = request.refreshToken();
+
+        return refreshTokenService.findByToken(requestRefreshToken)
+                .map(refreshTokenService::verifyExpiration)
+                .map(com.nhutruong.blood.identity.domain.RefreshToken::getUser)
+                .map(user -> {
+                    org.springframework.security.authentication.UsernamePasswordAuthenticationToken authentication =
+                            new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
+                    String token = jwtTokenProvider.generateToken(authentication);
+                    com.nhutruong.blood.identity.domain.RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user.getId());
+                    return ApiResponse.success("Token refreshed successfully", new LoginResponse(token, newRefreshToken.getToken(), CurrentUserResponse.from(user), authService.redirectFor(user.getRole())));
+                })
+                .orElseThrow(() -> new com.nhutruong.blood.shared.exception.BusinessException(com.nhutruong.blood.shared.exception.ErrorCode.UNAUTHENTICATED, "Refresh token is not in database!"));
     }
 
     @GetMapping("/me")

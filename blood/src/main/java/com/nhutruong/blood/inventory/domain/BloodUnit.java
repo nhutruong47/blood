@@ -10,9 +10,13 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import org.hibernate.envers.Audited;
+import com.nhutruong.blood.shared.domain.BaseAuditEntity;
+
 @Entity
 @Data
 @NoArgsConstructor
+@Audited
 @Table(
         uniqueConstraints = @UniqueConstraint(name = "uk_blood_unit_bag_code", columnNames = "bag_code"),
         indexes = {
@@ -20,7 +24,7 @@ import java.time.LocalDateTime;
                 @Index(name = "idx_blood_unit_reserved_request", columnList = "reserved_request_id")
         }
 )
-public class BloodUnit {
+public class BloodUnit extends BaseAuditEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -63,28 +67,10 @@ public class BloodUnit {
     @JoinColumn(name = "reserved_request_id")
     private BloodRequest reservedFor;
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
-
     @Version
     private Long version;
 
     public boolean isExpired(LocalDate today) {
         return expiryDate != null && expiryDate.isBefore(today);
-    }
-
-    @PrePersist
-    void onCreate() {
-        LocalDateTime now = LocalDateTime.now();
-        createdAt = now;
-        updatedAt = now;
-    }
-
-    @PreUpdate
-    void onUpdate() {
-        updatedAt = LocalDateTime.now();
     }
 }

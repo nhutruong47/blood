@@ -5,6 +5,9 @@ import com.nhutruong.blood.shared.domain.BloodGroup;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import org.hibernate.envers.Audited;
 
 import com.nhutruong.blood.shared.domain.BaseAuditEntity;
 import org.springframework.security.core.GrantedAuthority;
@@ -16,7 +19,10 @@ import java.util.Collections;
 
 @Entity
 @Data
+@Builder
 @NoArgsConstructor
+@AllArgsConstructor
+@Audited
 @Table(
         name = "users",
         uniqueConstraints = @UniqueConstraint(name = "uk_users_email", columnNames = "email")
@@ -26,6 +32,9 @@ public class User extends BaseAuditEntity implements UserDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Version
+    private Long version;
 
     @Column(nullable = false, unique = true)
     private String email;

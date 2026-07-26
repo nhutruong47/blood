@@ -15,6 +15,8 @@ public interface BloodUnitRepository extends JpaRepository<BloodUnit, Long> {
 
     Optional<BloodUnit> findByBagCode(String bagCode);
 
+    @org.springframework.cache.annotation.Cacheable(value = "bloodStock", unless = "#result == null or #result.isEmpty()")
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"donor"})
     List<BloodUnit> findByBloodGroupAndComponentTypeAndStatusAndExpiryDateGreaterThanEqualOrderByExpiryDateAsc(
             BloodGroup bloodGroup,
             BloodComponentType componentType,

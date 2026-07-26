@@ -23,9 +23,11 @@ public class BloodRequestService {
     );
 
     private final BloodRequestRepository bloodRequestRepository;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
-    public BloodRequestService(BloodRequestRepository bloodRequestRepository) {
+    public BloodRequestService(BloodRequestRepository bloodRequestRepository, org.springframework.context.ApplicationEventPublisher eventPublisher) {
         this.bloodRequestRepository = bloodRequestRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -71,6 +73,12 @@ public class BloodRequestService {
         bloodRequest.setStaffResponse(request.response());
         bloodRequest.setApprovedBy(staff);
 
-        return bloodRequestRepository.save(bloodRequest);
+        BloodRequest savedRequest = bloodRequestRepository.save(bloodRequest);
+
+        if (savedRequest.getStatus() == BloodRequestStatus.APPROVED) {
+            eventPublisher.publishEvent(new com.nhutruong.blood.bloodrequest.domain.event.BloodRequestApprovedEvent(savedRequest));
+        }
+
+        return savedRequest;
     }
 }

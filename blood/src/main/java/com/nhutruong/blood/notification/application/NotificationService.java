@@ -31,4 +31,14 @@ public class NotificationService {
         }).toList();
         return notificationRepository.saveAll(messages);
     }
+
+    @Transactional
+    public void sendNotification(User recipient, String body) {
+        NotificationMessage message = new NotificationMessage();
+        message.setRecipient(recipient);
+        message.setChannel(NotificationChannel.REALTIME);
+        message.setTitle("Notification");
+        message.setBody(body);
+        notificationRepository.save(message);
+    }
 }

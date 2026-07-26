@@ -9,10 +9,14 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+import org.hibernate.envers.Audited;
+import com.nhutruong.blood.shared.domain.BaseAuditEntity;
+
 @Entity
 @Data
 @NoArgsConstructor
-public class BloodRequest {
+@Audited
+public class BloodRequest extends BaseAuditEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -51,21 +55,6 @@ public class BloodRequest {
     @ManyToOne
     private User approvedBy;
 
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-
     @Version
     private Long version;
-
-    @PrePersist
-    void onCreate() {
-        LocalDateTime now = LocalDateTime.now();
-        createdAt = now;
-        updatedAt = now;
-    }
-
-    @PreUpdate
-    void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
 }
