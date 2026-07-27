@@ -1,7 +1,6 @@
 package com.nhutruong.blood.shared.security;
 
 import io.jsonwebtoken.*;
-import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,14 +9,17 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 
 @Slf4j
 @Component
 public class JwtTokenProvider {
 
-    // Base64 encoded 256-bit key (e.g. "my-super-secret-key-that-is-at-least-32-bytes-long" base64 encoded)
-    @Value("${app.jwt-secret:bXktc3VwZXItc2VjcmV0LWtleS10aGF0LWlzLWF0LWxlYXN0LTMyLWJ5dGVzLWxvbmc=}")
+    private static final int MIN_SECRET_LENGTH = 32;
+
+    @Value("${app.jwt-secret}")
     private String jwtSecret;
 
     @Value("${app.jwt-expiration-milliseconds:86400000}")
@@ -30,42 +32,64 @@ public class JwtTokenProvider {
         Date expireDate = new Date(currentDate.getTime() + jwtExpirationDate);
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(username)
-                .issuedAt(new Date())
+                .issuedAt(currentDate)
                 .expiration(expireDate)
-                .signWith(key())
+                .signWith(getSigningKey())
                 .compact();
     }
 
-    private SecretKey key() {
-        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
+    private SecretKey getSigningKey() {
+        String secret = ensureSecureSecret();
+        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+        return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    private String ensureSecureSecret() {
+        if (jwtSecret == null || jwtSecret.isEmpty() || jwtSecret.length() < MIN_SECRET_LENGTH) {
+            log.warn("JWT secret is not configured or too short. Using a generated temporary secret. SET app.jwt-secret in production!");
+            return UUID.randomUUID().toString() + UUID.randomUUID().toString();
+        }
+        return jwtSecret;
     }
 
     public String getUsername(String token) {
+        return parseClaims(token).getSubject();
+    }
+
+    public Claims parseClaims(String token) {
         return Jwts.parser()
-                .verifyWith(key())
+                .verifyWith(getSigningKey())
                 .build()
                 .parseSignedClaims(token)
-                .getPayload()
-                .getSubject();
+                .getPayload();
     }
 
     public boolean validateToken(String token) {
         try {
-            Jwts.parser()
-                    .verifyWith(key())
-                    .build()
-                    .parse(token);
+            parseClaims(token);
             return true;
-        } catch (MalformedJwtException ex) {
-            log.error("Invalid JWT token");
         } catch (ExpiredJwtException ex) {
-            log.error("Expired JWT token");
+            log.warn("JWT token expired: {}", ex.getMessage());
         } catch (UnsupportedJwtException ex) {
-            log.error("Unsupported JWT token");
+            log.warn("Unsupported JWT token: {}", ex.getMessage());
+        } catch (MalformedJwtException ex) {
+            log.warn("Malformed JWT token: {}", ex.getMessage());
+        } catch (io.jsonwebtoken.security.SecurityException ex) {
+            log.warn("Invalid JWT signature: {}", ex.getMessage());
         } catch (IllegalArgumentException ex) {
-            log.error("JWT claims string is empty");
+            log.warn("JWT claims string is empty: {}", ex.getMessage());
         }
         return false;
+    }
+
+    public boolean isTokenExpired(String token) {
+        try {
+            Claims claims = parseClaims(token);
+            return claims.getExpiration().before(new Date());
+        } catch (ExpiredJwtException ex) {
+            return true;
+        }
     }
 }

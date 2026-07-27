@@ -3,7 +3,7 @@ import { Droplet, Activity, Users, AlertTriangle } from "lucide-react";
 
 export function DashboardPage() {
   const { data: stockResponse, isLoading } = useStock();
-  const stocks = stockResponse?.data || [];
+  const stocks = stockResponse?.data as any[] || [];
 
   return (
     <div className="space-y-6">
@@ -16,7 +16,7 @@ export function DashboardPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-slate-500">Total Blood Units</p>
               <h3 className="text-2xl font-bold text-slate-900">
-                {stocks.reduce((acc, curr) => acc + (curr.totalUnits || 0), 0)}
+                {stocks.reduce((acc: number, curr: any) => acc + (curr.quantity || 0), 0)}
               </h3>
             </div>
           </div>
@@ -73,10 +73,10 @@ export function DashboardPage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {stocks.map((item) => (
+              {stocks.map((item: any) => (
                 <div key={item.bloodGroup} className="p-4 rounded-lg border border-slate-100 bg-slate-50 flex flex-col items-center justify-center">
                   <span className="text-xl font-bold text-red-600 mb-1">{item.bloodGroup}</span>
-                  <span className="text-sm text-slate-500">{item.totalUnits} Units ({item.totalVolumeMl} ml)</span>
+                  <span className="text-sm text-slate-500">{item.quantity} Units ({item.totalVolumeMl || 0} ml)</span>
                 </div>
               ))}
               {stocks.length === 0 && (

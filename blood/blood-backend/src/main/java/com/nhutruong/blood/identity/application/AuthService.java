@@ -79,14 +79,4 @@ public class AuthService {
             case RECIPIENT -> "/request-blood";
         };
     }
-
-    private boolean matchesPassword(String rawPassword, String storedPassword) {
-        if (storedPassword == null) {
-            return false;
-        }
-        if (storedPassword.startsWith("$2")) {
-            return passwordEncoder.matches(rawPassword, storedPassword);
-        }
-        return rawPassword.equals(storedPassword);
-    }
 }

@@ -1,5 +1,5 @@
 import { Outlet, Link } from "react-router-dom";
-import { Droplet, Activity, Users, Settings, LogOut, LayoutDashboard } from "lucide-react";
+import { Droplet, Activity, Users, LogOut, LayoutDashboard } from "lucide-react";
 
 export function MainLayout() {
   const handleLogout = () => {

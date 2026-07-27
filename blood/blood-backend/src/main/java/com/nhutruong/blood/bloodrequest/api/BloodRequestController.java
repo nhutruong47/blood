@@ -8,9 +8,14 @@ import com.nhutruong.blood.bloodrequest.domain.BloodRequest;
 import com.nhutruong.blood.identity.domain.Role;
 import com.nhutruong.blood.identity.domain.User;
 import com.nhutruong.blood.shared.api.ApiResponse;
+import com.nhutruong.blood.shared.api.PageResponse;
 import com.nhutruong.blood.shared.security.SessionUser;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -34,21 +39,37 @@ public class BloodRequestController {
     }
 
     @GetMapping("/api/medicalcenter/my-requests")
-    public ApiResponse<List<BloodRequestResponse>> getMyRequests(HttpSession session) {
+    public ApiResponse<PageResponse<BloodRequestResponse>> getMyRequests(
+            HttpSession session,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
         User medicalCenter = SessionUser.requireRole(session, Role.MEDICALCENTER);
-        List<BloodRequestResponse> response = bloodRequestService.myRequests(medicalCenter).stream()
-                .map(BloodRequestResponse::from)
-                .toList();
-        return ApiResponse.success(response);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<BloodRequestResponse> response = bloodRequestService.myRequests(medicalCenter, pageable);
+        return ApiResponse.success(PageResponse.of(
+                response.getContent(),
+                response.getNumber(),
+                response.getSize(),
+                response.getTotalElements()
+        ));
     }
 
     @GetMapping("/api/staff/requests")
-    public ApiResponse<List<BloodRequestResponse>> getPendingRequests(HttpSession session) {
+    public ApiResponse<PageResponse<BloodRequestResponse>> getPendingRequests(
+            HttpSession session,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
         SessionUser.requireRole(session, Role.STAFF);
-        List<BloodRequestResponse> response = bloodRequestService.pendingRequests().stream()
-                .map(BloodRequestResponse::from)
-                .toList();
-        return ApiResponse.success(response);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<BloodRequestResponse> response = bloodRequestService.pendingRequests(pageable);
+        return ApiResponse.success(PageResponse.of(
+                response.getContent(),
+                response.getNumber(),
+                response.getSize(),
+                response.getTotalElements()
+        ));
     }
 
     @PostMapping("/api/staff/process-request/{id}")

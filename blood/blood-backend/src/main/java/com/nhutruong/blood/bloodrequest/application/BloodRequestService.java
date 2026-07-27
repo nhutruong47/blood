@@ -1,5 +1,6 @@
 package com.nhutruong.blood.bloodrequest.application;
 
+import com.nhutruong.blood.bloodrequest.application.dto.BloodRequestResponse;
 import com.nhutruong.blood.bloodrequest.application.dto.CreateBloodRequestRequest;
 import com.nhutruong.blood.bloodrequest.application.dto.ProcessBloodRequestRequest;
 import com.nhutruong.blood.bloodrequest.domain.BloodRequest;
@@ -9,6 +10,8 @@ import com.nhutruong.blood.identity.domain.User;
 import com.nhutruong.blood.inventory.domain.BloodComponentType;
 import com.nhutruong.blood.shared.exception.BusinessException;
 import com.nhutruong.blood.shared.exception.ErrorCode;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,13 +49,15 @@ public class BloodRequestService {
     }
 
     @Transactional(readOnly = true)
-    public List<BloodRequest> myRequests(User medicalCenter) {
-        return bloodRequestRepository.findByMedicalCenter(medicalCenter);
+    public Page<BloodRequestResponse> myRequests(User medicalCenter, Pageable pageable) {
+        return bloodRequestRepository.findByMedicalCenter(medicalCenter, pageable)
+                .map(BloodRequestResponse::from);
     }
 
     @Transactional(readOnly = true)
-    public List<BloodRequest> pendingRequests() {
-        return bloodRequestRepository.findByStatus(BloodRequestStatus.SUBMITTED);
+    public Page<BloodRequestResponse> pendingRequests(Pageable pageable) {
+        return bloodRequestRepository.findPendingRequestsPageable(BloodRequestStatus.SUBMITTED, pageable)
+                .map(BloodRequestResponse::from);
     }
 
     @Transactional

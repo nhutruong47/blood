@@ -3,7 +3,7 @@ import { Clock, Activity } from "lucide-react";
 
 export function BloodRequestsPage() {
   const { data: response, isLoading, isError } = useGetPendingRequests();
-  const requests = response?.data || [];
+  const requests = (response?.data as any)?.data || [];
 
   return (
     <div className="space-y-6">
@@ -38,11 +38,11 @@ export function BloodRequestsPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
-                {requests.map((req) => (
+                {requests.map((req: any) => (
                   <tr key={req.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">#{req.id}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-bold">{req.bloodGroup}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{req.unitsRequired}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{req.quantityUnits || req.unitsRequired}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
                         {req.status}
