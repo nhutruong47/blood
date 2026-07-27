@@ -5,20 +5,22 @@ import com.nhutruong.blood.bloodrequest.application.dto.BloodRequestResponse;
 import com.nhutruong.blood.bloodrequest.application.dto.CreateBloodRequestRequest;
 import com.nhutruong.blood.bloodrequest.application.dto.ProcessBloodRequestRequest;
 import com.nhutruong.blood.bloodrequest.domain.BloodRequest;
-import com.nhutruong.blood.identity.domain.Role;
 import com.nhutruong.blood.identity.domain.User;
 import com.nhutruong.blood.shared.api.ApiResponse;
 import com.nhutruong.blood.shared.api.PageResponse;
-import com.nhutruong.blood.shared.security.SessionUser;
-import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class BloodRequestController {
@@ -29,56 +31,47 @@ public class BloodRequestController {
     }
 
     @PostMapping({"/api/request-blood", "/api/medicalcenter/request"})
+    @PreAuthorize("hasRole('MEDICALCENTER')")
     public ApiResponse<BloodRequestResponse> createRequest(
             @Valid @RequestBody CreateBloodRequestRequest request,
-            HttpSession session
+            @AuthenticationPrincipal User medicalCenter
     ) {
-        User medicalCenter = SessionUser.requireRole(session, Role.MEDICALCENTER);
         BloodRequest bloodRequest = bloodRequestService.createRequest(request, medicalCenter);
         return ApiResponse.success("Blood request submitted", BloodRequestResponse.from(bloodRequest));
     }
 
     @GetMapping("/api/medicalcenter/my-requests")
+    @PreAuthorize("hasRole('MEDICALCENTER')")
     public ApiResponse<PageResponse<BloodRequestResponse>> getMyRequests(
-            HttpSession session,
+            @AuthenticationPrincipal User medicalCenter,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        User medicalCenter = SessionUser.requireRole(session, Role.MEDICALCENTER);
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<BloodRequestResponse> response = bloodRequestService.myRequests(medicalCenter, pageable);
         return ApiResponse.success(PageResponse.of(
-                response.getContent(),
-                response.getNumber(),
-                response.getSize(),
-                response.getTotalElements()
-        ));
+                response.getContent(), response.getNumber(), response.getSize(), response.getTotalElements()));
     }
 
     @GetMapping("/api/staff/requests")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ApiResponse<PageResponse<BloodRequestResponse>> getPendingRequests(
-            HttpSession session,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        SessionUser.requireRole(session, Role.STAFF);
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<BloodRequestResponse> response = bloodRequestService.pendingRequests(pageable);
         return ApiResponse.success(PageResponse.of(
-                response.getContent(),
-                response.getNumber(),
-                response.getSize(),
-                response.getTotalElements()
-        ));
+                response.getContent(), response.getNumber(), response.getSize(), response.getTotalElements()));
     }
 
     @PostMapping("/api/staff/process-request/{id}")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ApiResponse<BloodRequestResponse> processRequest(
             @PathVariable Long id,
             @Valid @RequestBody ProcessBloodRequestRequest request,
-            HttpSession session
+            @AuthenticationPrincipal User staff
     ) {
-        User staff = SessionUser.requireRole(session, Role.STAFF);
         BloodRequest bloodRequest = bloodRequestService.processRequest(id, request, staff);
         return ApiResponse.success("Blood request processed", BloodRequestResponse.from(bloodRequest));
     }

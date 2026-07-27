@@ -31,11 +31,13 @@ public class ShipmentService {
         BloodRequest request = bloodRequestRepository.findById(bloodRequestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Blood request not found"));
 
-        if (request.getStatus() != BloodRequestStatus.RESERVED) {
+        if (request.getStatus() != BloodRequestStatus.RESERVED
+                && request.getStatus() != BloodRequestStatus.DISPATCHING) {
             throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION,
                     "Blood request must be RESERVED before creating shipment. Current status: " + request.getStatus());
         }
-
+        request.setStatus(BloodRequestStatus.DISPATCHING);
+        bloodRequestRepository.save(request);
         Shipment shipment = Shipment.builder()
                 .bloodRequest(request)
                 .courierName(courierName)
