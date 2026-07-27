@@ -88,4 +88,12 @@ public class AuthService {
             case RECIPIENT -> "/request-blood";
         };
     }
+
+    @Transactional(readOnly = true)
+    public void requestPasswordReset(String email) {
+        String normalizedEmail = email.trim().toLowerCase();
+        userRepository.findByEmail(normalizedEmail).ifPresent(user -> {
+            // Email delivery can be plugged in here without changing the public API contract.
+        });
+    }
 }

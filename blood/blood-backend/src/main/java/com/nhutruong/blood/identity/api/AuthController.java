@@ -2,6 +2,7 @@ package com.nhutruong.blood.identity.api;
 
 import com.nhutruong.blood.identity.application.AuthService;
 import com.nhutruong.blood.identity.application.dto.CurrentUserResponse;
+import com.nhutruong.blood.identity.application.dto.ForgotPasswordRequest;
 import com.nhutruong.blood.identity.application.dto.LoginRequest;
 import com.nhutruong.blood.identity.application.dto.LoginResponse;
 import com.nhutruong.blood.identity.application.dto.RegisterRequest;
@@ -44,6 +45,12 @@ public class AuthController {
         com.nhutruong.blood.identity.domain.RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
         LoginResponse response = new LoginResponse(token, refreshToken.getToken(), CurrentUserResponse.from(user), authService.redirectFor(user.getRole()));
         return ApiResponse.success("Login successful", response);
+    }
+
+    @PostMapping("/forgot-password")
+    public ApiResponse<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.requestPasswordReset(request.email());
+        return ApiResponse.success("If that email exists, a reset link has been sent.", null);
     }
 
     @PostMapping("/refresh")

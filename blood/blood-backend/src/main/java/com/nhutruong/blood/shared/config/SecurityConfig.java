@@ -1,6 +1,7 @@
 package com.nhutruong.blood.shared.config;
 
 import com.nhutruong.blood.shared.security.JwtAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -72,14 +73,19 @@ public class SecurityConfig {
                                 "/api/login",
                                 "/api/refresh",
                                 "/api/logout",
-                                "/api/me",
+                                "/api/forgot-password",
                                 "/api/v1/auth/**",
                                 "/api/auth/**"
                         ).permitAll()
                         .requestMatchers("/api/public/**", "/api/donate/eligibility-check").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/robots.txt", "/sitemap.xml").permitAll()
                         .anyRequest().authenticated()
+                )
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint((request, response, authException) ->
+                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 

@@ -56,7 +56,10 @@ public class ExpiredUnitScheduledJob {
         }
     }
 
-    @Scheduled(fixedRateString = "${app.reservation.ttl-ms:3600000}")
+    @Scheduled(
+            fixedRateString = "${app.reservation.ttl-ms:3600000}",
+            initialDelayString = "${app.reservation.startup-delay-ms:60000}"
+    )
     @Transactional
     public void expireStaleReservations() {
         LocalDateTime cutoff = LocalDateTime.now().minusNanos(reservationTtlMs * 1_000_000L);

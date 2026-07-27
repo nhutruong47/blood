@@ -153,7 +153,8 @@ export function EligibilityCheckPage() {
 
     try {
       const res = await checkMutation.mutateAsync({ data: payload as any });
-      const apiData = (res?.data as any)?.data;
+      const responseBody = res as any;
+      const apiData = responseBody?.data?.data ?? responseBody?.data;
       if (!apiData) {
         toast.error("Invalid response from server");
         return;
