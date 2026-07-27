@@ -80,7 +80,7 @@ public class InventoryService {
 
         BloodUnit saved = bloodUnitRepository.save(unit);
         recordMovement(saved, InventoryMovementType.COLLECT, null, BloodUnitStatus.QUARANTINED, "Blood unit collected and quarantined");
-        auditService.record(null, AuditAction.CREATE, "BloodUnit", saved.getId(), "Blood unit created");
+        auditService.log(null, "SYSTEM", AuditAction.CREATE, "BloodUnit", String.valueOf(saved.getId()), "Blood unit created");
         return saved;
     }
 
@@ -112,7 +112,7 @@ public class InventoryService {
         }
 
         BloodUnit saved = bloodUnitRepository.save(unit);
-        auditService.record(null, AuditAction.UPDATE, "BloodUnit", saved.getId(), "Lab test recorded");
+        auditService.log(null, "SYSTEM", AuditAction.UPDATE, "BloodUnit", String.valueOf(saved.getId()), "Lab test recorded");
         return saved;
     }
 
@@ -151,7 +151,7 @@ public class InventoryService {
         unit.setStatus(BloodUnitStatus.DISPATCHED);
         recordMovement(unit, InventoryMovementType.DISPATCH, previous, BloodUnitStatus.DISPATCHED, "Blood unit dispatched");
         BloodUnit saved = bloodUnitRepository.save(unit);
-        auditService.record(null, AuditAction.DISPATCH, "BloodUnit", saved.getId(), "Blood unit dispatched");
+        auditService.log(null, "SYSTEM", AuditAction.DISPATCH, "BloodUnit", String.valueOf(saved.getId()), "Blood unit dispatched");
         return saved;
     }
 

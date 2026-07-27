@@ -72,8 +72,8 @@ public class ReservationService {
             log.info("Reserved blood unit {} for request #{}", unit.getBagCode(), bloodRequestId);
         }
 
-        auditService.record(null, com.nhutruong.blood.audit.domain.AuditAction.RESERVE,
-                "BloodRequest", bloodRequestId, "Blood units reserved with pessimistic locking");
+        auditService.log(null, "SYSTEM", com.nhutruong.blood.audit.domain.AuditAction.RESERVE,
+                "BloodRequest", String.valueOf(bloodRequestId), "Blood units reserved with pessimistic locking");
         return reserved;
     }
 
@@ -94,8 +94,8 @@ public class ReservationService {
             movementRepository.save(movement);
         }
         if (!units.isEmpty()) {
-            auditService.record(null, com.nhutruong.blood.audit.domain.AuditAction.RELEASE,
-                    "BloodRequest", bloodRequestId, reason);
+            auditService.log(null, "SYSTEM", com.nhutruong.blood.audit.domain.AuditAction.RELEASE,
+                    "BloodRequest", String.valueOf(bloodRequestId), reason);
         }
         log.info("Released {} units from request #{}", units.size(), bloodRequestId);
     }

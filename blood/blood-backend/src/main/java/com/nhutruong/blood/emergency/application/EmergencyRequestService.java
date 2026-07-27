@@ -72,7 +72,7 @@ public class EmergencyRequestService {
                     .toList();
             saved.setStatus(BloodRequestStatus.RESERVED);
             saved = bloodRequestRepository.save(saved);
-            auditService.record(hospital, AuditAction.EMERGENCY_ALERT, "BloodRequest", saved.getId(), "Emergency request reserved from inventory");
+            auditService.log(hospital.getId(), hospital.getRole().name(), AuditAction.EMERGENCY_ALERT, "BloodRequest", String.valueOf(saved.getId()), "Emergency request reserved from inventory");
             return new EmergencyRequestResponse(BloodRequestResponse.from(saved), saved.getStatus(), reserved.size(), 0, 0);
         }
 
@@ -82,7 +82,7 @@ public class EmergencyRequestService {
         int notificationsQueued = notificationService
                 .emergencyAlert(recommendations.stream().map(DonorMatchRecommendation::getDonor).toList(), saved.getId(), saved.getBloodGroup().name())
                 .size();
-        auditService.record(hospital, AuditAction.EMERGENCY_ALERT, "BloodRequest", saved.getId(), "Emergency donor matching started");
+        auditService.log(hospital.getId(), hospital.getRole().name(), AuditAction.EMERGENCY_ALERT, "BloodRequest", String.valueOf(saved.getId()), "Emergency donor matching started");
         return new EmergencyRequestResponse(BloodRequestResponse.from(saved), saved.getStatus(), 0, recommendations.size(), notificationsQueued);
     }
 }
