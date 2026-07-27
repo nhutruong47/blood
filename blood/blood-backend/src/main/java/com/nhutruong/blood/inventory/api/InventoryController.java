@@ -25,7 +25,7 @@ public class InventoryController {
     }
 
     @PostMapping("/units/{id}/lab-tests")
-    @PreAuthorize("hasAnyRole('LAB_STAFF', 'MEDICALCENTER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LAB_STAFF', 'STAFF', 'MEDICALCENTER', 'ADMIN')")
     public ApiResponse<BloodUnitResponse> recordLabTest(
             @PathVariable Long id,
             @Valid @RequestBody RecordLabTestRequest request

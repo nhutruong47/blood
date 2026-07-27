@@ -16,7 +16,13 @@ import { EmergencyRequestPage } from "@/features/emergency/EmergencyRequestPage"
 
 // Features - Auth
 import { LoginPage } from "@/features/auth/LoginPage";
+import { RegisterPage } from "@/features/auth/RegisterPage";
+import { ForgotPasswordPage } from "@/features/auth/ForgotPasswordPage";
 import { UnauthorizedPage } from "@/features/auth/UnauthorizedPage";
+
+// Features - Settings / Profile (authenticated, any role)
+import { SettingsPage } from "@/features/settings/SettingsPage";
+import { ProfilePage } from "@/features/profile/ProfilePage";
 
 // Features - Dashboard (Authenticated)
 import { DonorDashboardPage } from "@/features/dashboard/DonorDashboardPage";
@@ -64,6 +70,44 @@ export const router = createBrowserRouter([
       {
         path: "login",
         element: <LoginPage />,
+      },
+      {
+        path: "register",
+        element: <RegisterPage />,
+      },
+      {
+        path: "forgot-password",
+        element: <ForgotPasswordPage />,
+      },
+    ],
+  },
+
+  // Authenticated app shell - Profile & Settings (any authenticated role)
+  {
+    element: (
+      <RoleGuard
+        allowedRoles={[
+          "DONOR",
+          "HOSPITAL",
+          "MEDICALCENTER",
+          "STAFF",
+          "LAB_STAFF",
+          "MEDICAL_STAFF",
+          "ADMIN",
+          "SUPER_ADMIN",
+        ]}
+      >
+        <MainLayout />
+      </RoleGuard>
+    ),
+    children: [
+      {
+        path: "profile",
+        element: <ProfilePage />,
+      },
+      {
+        path: "settings",
+        element: <SettingsPage />,
       },
     ],
   },

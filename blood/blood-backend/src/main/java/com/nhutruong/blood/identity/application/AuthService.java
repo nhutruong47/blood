@@ -21,12 +21,19 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuthService {
     private final UserRepository userRepository;
+    private final UserProfileService userProfileService;
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public AuthService(UserRepository userRepository, AuthenticationManager authenticationManager, JwtTokenProvider jwtTokenProvider) {
+    public AuthService(
+            UserRepository userRepository,
+            UserProfileService userProfileService,
+            AuthenticationManager authenticationManager,
+            JwtTokenProvider jwtTokenProvider
+    ) {
         this.userRepository = userRepository;
+        this.userProfileService = userProfileService;
         this.authenticationManager = authenticationManager;
         this.jwtTokenProvider = jwtTokenProvider;
     }
@@ -50,7 +57,9 @@ public class AuthService {
         user.setRole(Role.DONOR);
         user.setStatus(UserStatus.ACTIVE);
 
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        userProfileService.createDefaultProfile(saved);
+        return saved;
     }
 
     @Transactional
