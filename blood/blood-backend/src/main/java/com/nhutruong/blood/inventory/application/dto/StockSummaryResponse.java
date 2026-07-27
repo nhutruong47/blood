@@ -8,6 +8,7 @@ public record StockSummaryResponse(
         BloodGroup bloodGroup,
         BloodComponentType componentType,
         BloodUnitStatus status,
-        long quantity
+        long quantity,
+        long totalVolumeMl
 ) {
 }

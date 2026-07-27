@@ -14,15 +14,15 @@ import com.nhutruong.blood.inventory.domain.*;
 import com.nhutruong.blood.inventory.infrastructure.BloodUnitRepository;
 import com.nhutruong.blood.inventory.infrastructure.InventoryMovementRepository;
 import com.nhutruong.blood.inventory.infrastructure.LabTestRepository;
+import com.nhutruong.blood.shared.domain.BloodGroup;
 import com.nhutruong.blood.shared.exception.BusinessException;
 import com.nhutruong.blood.shared.exception.ErrorCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class InventoryService {
@@ -113,13 +113,23 @@ public class InventoryService {
     public List<BloodUnit> reserve(ReserveBloodUnitsRequest request) {
         BloodRequest bloodRequest = bloodRequestRepository.findById(request.bloodRequestId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Blood request not found"));
-        List<BloodUnit> candidates = bloodUnitRepository
-                .findByBloodGroupAndComponentTypeAndStatusAndExpiryDateGreaterThanEqualOrderByExpiryDateAsc(
-                        request.bloodGroup(),
-                        request.componentType(),
-                        BloodUnitStatus.AVAILABLE,
-                        LocalDate.now()
-                );
+
+        // Verify blood compatibility
+        BloodGroup requestBloodGroup = request.bloodGroup();
+        List<BloodGroup> compatibleGroups = getCompatibleBloodGroups(requestBloodGroup);
+
+        List<BloodUnit> candidates = new ArrayList<>();
+        for (BloodGroup bg : compatibleGroups) {
+            List<BloodUnit> units = bloodUnitRepository
+                    .findByBloodGroupAndComponentTypeAndStatusAndExpiryDateGreaterThanEqualOrderByExpiryDateAsc(
+                            bg,
+                            request.componentType(),
+                            BloodUnitStatus.AVAILABLE,
+                            LocalDate.now()
+                    );
+            candidates.addAll(units);
+        }
+
         if (candidates.size() < request.quantity()) {
             throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION, "Not enough available stock to reserve");
         }
@@ -165,18 +175,25 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public List<StockSummaryResponse> stock() {
-        Map<String, StockSummaryResponse> grouped = new LinkedHashMap<>();
-        for (BloodUnit unit : bloodUnitRepository.findAll()) {
-            String key = unit.getBloodGroup() + "|" + unit.getComponentType() + "|" + unit.getStatus();
-            StockSummaryResponse current = grouped.get(key);
-            grouped.put(key, new StockSummaryResponse(
-                    unit.getBloodGroup(),
-                    unit.getComponentType(),
-                    unit.getStatus(),
-                    current == null ? 1 : current.quantity() + 1
+        List<Object[]> results = bloodUnitRepository.getStockSummary();
+        List<StockSummaryResponse> summaries = new ArrayList<>();
+
+        for (Object[] row : results) {
+            BloodGroup bloodGroup = (BloodGroup) row[0];
+            BloodComponentType componentType = (BloodComponentType) row[1];
+            BloodUnitStatus status = (BloodUnitStatus) row[2];
+            Long count = (Long) row[3];
+            Long volume = (Long) row[4];
+
+            summaries.add(new StockSummaryResponse(
+                    bloodGroup,
+                    componentType,
+                    status,
+                    count != null ? count : 0L,
+                    volume != null ? volume : 0L
             ));
         }
-        return List.copyOf(grouped.values());
+        return summaries;
     }
 
     private BloodUnit getUnit(Long id) {
@@ -206,5 +223,24 @@ public class InventoryService {
         movement.setToStatus(toStatus);
         movement.setReason(reason);
         movementRepository.save(movement);
+    }
+
+    /**
+     * Get compatible blood groups for transfusion.
+     * Universal donor: O- can give to all.
+     * Universal recipient: AB+ can receive from all.
+     */
+    private List<BloodGroup> getCompatibleBloodGroups(BloodGroup requested) {
+        return switch (requested) {
+            case O_NEGATIVE -> List.of(BloodGroup.O_NEGATIVE);
+            case O_POSITIVE -> List.of(BloodGroup.O_NEGATIVE, BloodGroup.O_POSITIVE);
+            case A_NEGATIVE -> List.of(BloodGroup.O_NEGATIVE, BloodGroup.A_NEGATIVE);
+            case A_POSITIVE -> List.of(BloodGroup.O_NEGATIVE, BloodGroup.O_POSITIVE, BloodGroup.A_NEGATIVE, BloodGroup.A_POSITIVE);
+            case B_NEGATIVE -> List.of(BloodGroup.O_NEGATIVE, BloodGroup.B_NEGATIVE);
+            case B_POSITIVE -> List.of(BloodGroup.O_NEGATIVE, BloodGroup.O_POSITIVE, BloodGroup.B_NEGATIVE, BloodGroup.B_POSITIVE);
+            case AB_NEGATIVE -> List.of(BloodGroup.O_NEGATIVE, BloodGroup.A_NEGATIVE, BloodGroup.B_NEGATIVE, BloodGroup.AB_NEGATIVE);
+            case AB_POSITIVE -> List.of(BloodGroup.O_NEGATIVE, BloodGroup.O_POSITIVE, BloodGroup.A_NEGATIVE, BloodGroup.A_POSITIVE,
+                    BloodGroup.B_NEGATIVE, BloodGroup.B_POSITIVE, BloodGroup.AB_NEGATIVE, BloodGroup.AB_POSITIVE);
+        };
     }
 }

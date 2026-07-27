@@ -3,6 +3,9 @@ package com.nhutruong.blood.shared.exception;
 import com.nhutruong.blood.shared.api.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -42,12 +45,43 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.failure(ErrorCode.VALIDATION_ERROR.defaultMessage(), body));
     }
 
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleAuthenticationException(
+            AuthenticationException exception,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity
+                .status(ErrorCode.UNAUTHENTICATED.status())
+                .body(ApiResponse.failure("Invalid email or password", errorBody(ErrorCode.UNAUTHENTICATED, request.getRequestURI())));
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleBadCredentialsException(
+            BadCredentialsException exception,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity
+                .status(ErrorCode.UNAUTHENTICATED.status())
+                .body(ApiResponse.failure("Invalid email or password", errorBody(ErrorCode.UNAUTHENTICATED, request.getRequestURI())));
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleAccessDeniedException(
+            AccessDeniedException exception,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity
+                .status(ErrorCode.FORBIDDEN.status())
+                .body(ApiResponse.failure(ErrorCode.FORBIDDEN.defaultMessage(), errorBody(ErrorCode.FORBIDDEN, request.getRequestURI())));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Map<String, Object>>> handleUnexpectedException(
             Exception exception,
             HttpServletRequest request
     ) {
         Map<String, Object> body = errorBody(ErrorCode.INTERNAL_ERROR, request.getRequestURI());
+        body.put("type", exception.getClass().getSimpleName());
         return ResponseEntity
                 .status(ErrorCode.INTERNAL_ERROR.status())
                 .body(ApiResponse.failure(ErrorCode.INTERNAL_ERROR.defaultMessage(), body));

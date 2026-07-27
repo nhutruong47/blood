@@ -15,7 +15,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 export function LoginPage() {
   const navigate = useNavigate();
   const [errorMsg, setErrorMsg] = useState("");
-  
+
   const {
     register,
     handleSubmit,
@@ -30,8 +30,8 @@ export function LoginPage() {
     setErrorMsg("");
     try {
       const response = await loginMutation.mutateAsync({ data });
-      if (response.data && response.data.token) {
-        localStorage.setItem("token", response.data.token);
+      if (response.data?.data?.accessToken) {
+        localStorage.setItem("token", response.data.data.accessToken);
         navigate("/dashboard");
       }
     } catch (err: any) {
@@ -46,7 +46,7 @@ export function LoginPage() {
           {errorMsg}
         </div>
       )}
-      
+
       <div>
         <label className="block text-sm font-medium text-slate-700">Email address</label>
         <div className="mt-1">
