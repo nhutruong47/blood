@@ -8,16 +8,32 @@ import {
   Droplet,
   User,
   Clock,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
+import { useCreate1 } from "@/shared/api/generated/emergency-request-controller/emergency-request-controller";
+import type { CreateEmergencyRequestBloodGroup } from "@/shared/api/generated/model/createEmergencyRequestBloodGroup";
+import type { CreateEmergencyRequestComponentType } from "@/shared/api/generated/model/createEmergencyRequestComponentType";
 
-const BLOOD_TYPES = ["O-", "O+", "A-", "A+", "B-", "B+", "AB-", "AB+"];
+const BLOOD_TYPES: Array<{ short: string; api: CreateEmergencyRequestBloodGroup }> = [
+  { short: "O-", api: "O_NEGATIVE" },
+  { short: "O+", api: "O_POSITIVE" },
+  { short: "A-", api: "A_NEGATIVE" },
+  { short: "A+", api: "A_POSITIVE" },
+  { short: "B-", api: "B_NEGATIVE" },
+  { short: "B+", api: "B_POSITIVE" },
+  { short: "AB-", api: "AB_NEGATIVE" },
+  { short: "AB+", api: "AB_POSITIVE" },
+];
+
 const URGENCY_LEVELS = [
   { value: "LOW", label: "Low", description: "Within 48 hours", color: "bg-green-100 text-green-800" },
   { value: "MEDIUM", label: "Medium", description: "Within 24 hours", color: "bg-yellow-100 text-yellow-800" },
   { value: "HIGH", label: "High", description: "Within 6 hours", color: "bg-orange-100 text-orange-800" },
   { value: "CRITICAL", label: "Critical", description: "Immediate", color: "bg-red-100 text-red-800" },
 ];
-const COMPONENTS = [
+
+const COMPONENTS: Array<{ value: CreateEmergencyRequestComponentType; label: string }> = [
   { value: "WHOLE_BLOOD", label: "Whole Blood" },
   { value: "RBC", label: "Red Blood Cells" },
   { value: "PLASMA", label: "Plasma" },
@@ -34,18 +50,62 @@ export function EmergencyRequestPage() {
     hospitalName: "",
     hospitalAddress: "",
     patientInfo: "",
-    bloodType: "",
-    component: "WHOLE_BLOOD",
+    bloodTypeShort: "",
+    component: "WHOLE_BLOOD" as CreateEmergencyRequestComponentType,
     unitsRequired: 1,
     urgency: "MEDIUM",
     requiredDate: "",
     notes: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const createEmergencyMutation = useCreate1();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate API call
-    setSubmitted(true);
+
+    if (!formData.bloodTypeShort) {
+      toast.error("Please select a blood type");
+      return;
+    }
+
+    const bloodTypeEntry = BLOOD_TYPES.find((b) => b.short === formData.bloodTypeShort);
+    if (!bloodTypeEntry) {
+      toast.error("Invalid blood type selected");
+      return;
+    }
+
+    // Combine hospital info + patient info into recipientInfo
+    const recipientInfo = [
+      formData.hospitalName && `Hospital: ${formData.hospitalName}`,
+      formData.hospitalAddress && `Address: ${formData.hospitalAddress}`,
+      formData.patientInfo && `Patient: ${formData.patientInfo}`,
+      `Contact: ${formData.requesterName} (${formData.requesterPhone})`,
+      `Urgency: ${formData.urgency}`,
+      formData.requiredDate && `Required by: ${formData.requiredDate}`,
+      formData.notes && `Notes: ${formData.notes}`,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    try {
+      await createEmergencyMutation.mutateAsync({
+        data: {
+          bloodGroup: bloodTypeEntry.api,
+          componentType: formData.component,
+          quantityUnits: formData.unitsRequired,
+          recipientInfo,
+          latitude: 0,
+          longitude: 0,
+        },
+      });
+
+      setSubmitted(true);
+      toast.success("Emergency request submitted successfully");
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message || "Failed to submit request. Please call the hotline directly."
+      );
+    }
   };
 
   if (submitted) {
@@ -83,7 +143,7 @@ export function EmergencyRequestPage() {
                     hospitalName: "",
                     hospitalAddress: "",
                     patientInfo: "",
-                    bloodType: "",
+                    bloodTypeShort: "",
                     component: "WHOLE_BLOOD",
                     unitsRequired: 1,
                     urgency: "MEDIUM",
@@ -247,14 +307,14 @@ export function EmergencyRequestPage() {
                 </label>
                 <select
                   required
-                  value={formData.bloodType}
-                  onChange={(e) => setFormData({ ...formData, bloodType: e.target.value })}
+                  value={formData.bloodTypeShort}
+                  onChange={(e) => setFormData({ ...formData, bloodTypeShort: e.target.value })}
                   className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500"
                 >
                   <option value="">Select Blood Type</option>
-                  {BLOOD_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
+                  {BLOOD_TYPES.map((bt) => (
+                    <option key={bt.short} value={bt.short}>
+                      {bt.short}
                     </option>
                   ))}
                 </select>
@@ -266,7 +326,12 @@ export function EmergencyRequestPage() {
                 <select
                   required
                   value={formData.component}
-                  onChange={(e) => setFormData({ ...formData, component: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      component: e.target.value as CreateEmergencyRequestComponentType,
+                    })
+                  }
                   className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500"
                 >
                   {COMPONENTS.map((comp) => (
@@ -372,10 +437,20 @@ export function EmergencyRequestPage() {
           <div className="flex flex-col sm:flex-row gap-4">
             <button
               type="submit"
-              className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-red-600 text-white rounded-xl font-bold text-lg hover:bg-red-700 transition-colors"
+              disabled={createEmergencyMutation.isPending}
+              className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-red-600 text-white rounded-xl font-bold text-lg hover:bg-red-700 transition-colors disabled:opacity-50"
             >
-              <Send className="w-5 h-5" />
-              Submit Emergency Request
+              {createEmergencyMutation.isPending ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="w-5 h-5" />
+                  Submit Emergency Request
+                </>
+              )}
             </button>
           </div>
 

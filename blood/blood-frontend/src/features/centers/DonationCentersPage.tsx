@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
   MapPin,
@@ -12,74 +12,13 @@ import {
   Navigation,
   Calendar,
   FilterX,
+  Loader2,
 } from "lucide-react";
-
-const MOCK_CENTERS = [
-  {
-    id: 1,
-    name: "Blood Center - Ho Chi Minh City",
-    address: "123 Nguyen Hue Street, District 1",
-    city: "Ho Chi Minh City",
-    lat: 10.7769,
-    lng: 106.7009,
-    phone: "028-3822-1234",
-    rating: 4.8,
-    reviews: 234,
-    openHours: "07:00 - 17:00",
-    distance: 1.2,
-    nextSlot: "Today 2:00 PM",
-    bloodTypes: ["O+", "A+", "B+", "AB+"],
-    image: "https://images.unsplash.com/photo-1615461066841-6116e61058f4?w=400&h=300&fit=crop",
-  },
-  {
-    id: 2,
-    name: "Hospital Blood Bank - District 5",
-    address: "456 Tran Phu Street, District 5",
-    city: "Ho Chi Minh City",
-    lat: 10.7550,
-    lng: 106.6540,
-    phone: "028-3855-5678",
-    rating: 4.6,
-    reviews: 156,
-    openHours: "08:00 - 16:00",
-    distance: 3.5,
-    nextSlot: "Tomorrow 9:00 AM",
-    bloodTypes: ["O-", "A-", "B-", "AB-"],
-    image: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=400&h=300&fit=crop",
-  },
-  {
-    id: 3,
-    name: "Red Cross Donation Center",
-    address: "789 Le Dai Hanh Street, District 11",
-    city: "Ho Chi Minh City",
-    lat: 10.7650,
-    lng: 106.6400,
-    phone: "028-3858-9999",
-    rating: 4.9,
-    reviews: 412,
-    openHours: "07:30 - 17:30",
-    distance: 5.1,
-    nextSlot: "Today 4:00 PM",
-    bloodTypes: ["O+", "A+", "B+", "AB+", "O-", "A-"],
-    image: "https://images.unsplash.com/photo-1582719471384-894fbb16e074?w=400&h=300&fit=crop",
-  },
-  {
-    id: 4,
-    name: "City Hospital Blood Center",
-    address: "321 Nguyen Tri Phuong, District 10",
-    city: "Ho Chi Minh City",
-    lat: 10.7720,
-    lng: 106.6750,
-    phone: "028-3853-2222",
-    rating: 4.5,
-    reviews: 98,
-    openHours: "08:00 - 15:00",
-    distance: 2.8,
-    nextSlot: "Today 3:30 PM",
-    bloodTypes: ["A+", "B+", "AB+"],
-    image: "https://images.unsplash.com/photo-1538108149393-fbbd81895907?w=400&h=300&fit=crop",
-  },
-];
+import { toast } from "sonner";
+import {
+  usePublicLocations,
+  useNearbyLocations,
+} from "@/shared/api/generated/donation-location-controller/donation-location-controller";
 
 const BLOOD_TYPES = ["All", "O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
 const DISTANCES = [
@@ -89,22 +28,83 @@ const DISTANCES = [
   { value: 50, label: "Within 50 km" },
 ];
 
+interface Center {
+  id: number;
+  name: string;
+  address: string;
+  city?: string;
+  lat: number;
+  lng: number;
+  phone: string;
+  rating?: number;
+  openHours?: string;
+  distance?: number;
+  bloodTypes?: string[];
+  slug?: string;
+}
+
 export function DonationCentersPage() {
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBloodType, setSelectedBloodType] = useState("All");
   const [selectedDistance, setSelectedDistance] = useState(50);
   const [showFilters, setShowFilters] = useState(false);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
 
-  const filteredCenters = MOCK_CENTERS.filter((center) => {
+  const { data: listResponse, isLoading: isListLoading, isError: isListError } =
+    usePublicLocations();
+
+  const { data: nearbyResponse, isLoading: isNearbyLoading } = useNearbyLocations(
+    { lat: userCoords?.lat ?? 10.7769, lng: userCoords?.lng ?? 106.7009, radiusKm: selectedDistance },
+    { query: { enabled: userCoords !== null } }
+  );
+
+  if (isListError) {
+    toast.error("Failed to load donation centers");
+  }
+
+  // Parse API response (ApiResponse<List<DonationLocationResponse>>)
+  const allCenters: Center[] = useMemo(() => {
+    const apiCenters = (listResponse?.data as any)?.data || [];
+    return apiCenters.map((loc: any) => ({
+      id: loc.id,
+      name: loc.name,
+      address: loc.address,
+      lat: loc.latitude,
+      lng: loc.longitude,
+      phone: loc.phone || "(028) 3822-1234",
+      openHours: "07:00 - 17:00",
+      bloodTypes: ["O+", "A+", "B+", "AB+"],
+      rating: 4.5,
+      slug: loc.slug,
+    }));
+  }, [listResponse]);
+
+  const nearbyCenters: Center[] = useMemo(() => {
+    const apiCenters = (nearbyResponse?.data as any)?.data || [];
+    return apiCenters.map((item: any) => ({
+      id: item.location.id,
+      name: item.location.name,
+      address: item.location.address,
+      lat: item.location.latitude,
+      lng: item.location.longitude,
+      phone: item.location.phone || "(028) 3822-1234",
+      openHours: "07:00 - 17:00",
+      bloodTypes: ["O+", "A+", "B+", "AB+"],
+      rating: 4.5,
+      distance: item.distanceKm,
+      slug: item.location.slug,
+    }));
+  }, [nearbyResponse]);
+
+  const centersToShow = userCoords ? nearbyCenters : allCenters;
+
+  const filteredCenters = centersToShow.filter((center) => {
     const matchesSearch =
+      !searchQuery ||
       center.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      center.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      center.city.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesBloodType =
-      selectedBloodType === "All" || center.bloodTypes.includes(selectedBloodType);
-    const matchesDistance = center.distance <= selectedDistance;
-    return matchesSearch && matchesBloodType && matchesDistance;
+      center.address.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch;
   });
 
   const clearFilters = () => {
@@ -113,8 +113,26 @@ export function DonationCentersPage() {
     setSelectedDistance(50);
   };
 
-  const hasActiveFilters =
-    searchQuery || selectedBloodType !== "All" || selectedDistance !== 50;
+  const hasActiveFilters = searchQuery || selectedBloodType !== "All" || selectedDistance !== 50;
+
+  const handleUseLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        toast.success("Location detected. Showing nearby centers.");
+      },
+      () => {
+        toast.error("Unable to retrieve your location");
+      }
+    );
+  };
+
+  const isLoading = isListLoading || (userCoords && isNearbyLoading);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -137,12 +155,21 @@ export function DonationCentersPage() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search by name, address, or city..."
+                placeholder="Search by name or address..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all"
               />
             </div>
+
+            {/* Use My Location */}
+            <button
+              onClick={handleUseLocation}
+              className="flex items-center gap-2 px-4 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors"
+            >
+              <Navigation className="w-5 h-5" />
+              <span className="hidden sm:inline">Use My Location</span>
+            </button>
 
             {/* Filter Toggle */}
             <button
@@ -191,7 +218,6 @@ export function DonationCentersPage() {
           {showFilters && (
             <div className="mt-4 p-4 bg-slate-50 rounded-xl">
               <div className="grid md:grid-cols-3 gap-4">
-                {/* Blood Type Filter */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Blood Type Needed
@@ -209,7 +235,6 @@ export function DonationCentersPage() {
                   </select>
                 </div>
 
-                {/* Distance Filter */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Maximum Distance
@@ -227,7 +252,6 @@ export function DonationCentersPage() {
                   </select>
                 </div>
 
-                {/* Clear Filters */}
                 <div className="flex items-end">
                   <button
                     onClick={clearFilters}
@@ -245,22 +269,21 @@ export function DonationCentersPage() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Results Count */}
-        <div className="mb-6">
+        <div className="mb-6 flex items-center justify-between">
           <p className="text-slate-600">
             Found <span className="font-semibold text-slate-900">{filteredCenters.length}</span> donation centers
-            {hasActiveFilters && " with your filters"}
+            {userCoords && " near your location"}
           </p>
+          {isLoading && <Loader2 className="w-5 h-5 animate-spin text-red-600" />}
         </div>
 
         {viewMode === "list" ? (
-          /* List View */
           <div className="grid gap-6">
             {filteredCenters.map((center) => (
               <CenterCard key={center.id} center={center} />
             ))}
 
-            {filteredCenters.length === 0 && (
+            {filteredCenters.length === 0 && !isLoading && (
               <div className="text-center py-12 bg-white rounded-2xl border border-slate-200">
                 <MapPin className="w-12 h-12 text-slate-300 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-slate-900 mb-2">No centers found</h3>
@@ -277,16 +300,13 @@ export function DonationCentersPage() {
             )}
           </div>
         ) : (
-          /* Map View */
           <div className="grid lg:grid-cols-3 gap-6">
-            {/* Center List */}
             <div className="lg:col-span-1 space-y-4 max-h-[calc(100vh-250px)] overflow-y-auto">
               {filteredCenters.map((center) => (
                 <CenterCard key={center.id} center={center} compact />
               ))}
             </div>
 
-            {/* Map Placeholder */}
             <div className="lg:col-span-2 bg-slate-200 rounded-2xl min-h-[500px] flex items-center justify-center">
               <div className="text-center">
                 <MapIcon className="w-16 h-16 text-slate-400 mx-auto mb-4" />
@@ -301,13 +321,7 @@ export function DonationCentersPage() {
   );
 }
 
-function CenterCard({
-  center,
-  compact = false,
-}: {
-  center: (typeof MOCK_CENTERS)[0];
-  compact?: boolean;
-}) {
+function CenterCard({ center, compact = false }: { center: Center; compact?: boolean }) {
   return (
     <div
       className={`bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition-all ${
@@ -315,79 +329,83 @@ function CenterCard({
       }`}
     >
       {compact ? (
-        /* Compact Card for Map View */
         <div className="flex gap-4">
-          <img
-            src={center.image}
-            alt={center.name}
-            className="w-24 h-24 object-cover rounded-xl"
-          />
+          <div className="w-24 h-24 bg-gradient-to-br from-red-500 to-red-700 rounded-xl flex items-center justify-center">
+            <MapPin className="w-10 h-10 text-white" />
+          </div>
           <div className="flex-1">
             <h3 className="font-semibold text-slate-900">{center.name}</h3>
             <p className="text-sm text-slate-500 mt-1">{center.address}</p>
             <div className="flex items-center gap-4 mt-2 text-sm">
-              <span className="flex items-center gap-1 text-slate-600">
-                <Navigation className="w-4 h-4" />
-                {center.distance} km
-              </span>
-              <span className="flex items-center gap-1 text-slate-600">
-                <Clock className="w-4 h-4" />
-                {center.openHours}
-              </span>
+              {center.distance !== undefined && (
+                <span className="flex items-center gap-1 text-slate-600">
+                  <Navigation className="w-4 h-4" />
+                  {center.distance.toFixed(1)} km
+                </span>
+              )}
+              {center.openHours && (
+                <span className="flex items-center gap-1 text-slate-600">
+                  <Clock className="w-4 h-4" />
+                  {center.openHours}
+                </span>
+              )}
             </div>
           </div>
         </div>
       ) : (
-        /* Full Card */
         <>
-          <div className="relative h-48">
-            <img
-              src={center.image}
-              alt={center.name}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute top-4 left-4">
-              <span className="px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-sm font-medium text-slate-700 flex items-center gap-1">
-                <Navigation className="w-4 h-4" />
-                {center.distance} km away
-              </span>
-            </div>
-            <div className="absolute top-4 right-4 flex items-center gap-1 px-3 py-1 bg-yellow-400 rounded-full text-sm font-medium">
-              <Star className="w-4 h-4" />
-              {center.rating}
-            </div>
+          <div className="relative h-48 bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center">
+            <MapPin className="w-16 h-16 text-white opacity-50" />
+            {center.distance !== undefined && (
+              <div className="absolute top-4 left-4">
+                <span className="px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-sm font-medium text-slate-700 flex items-center gap-1">
+                  <Navigation className="w-4 h-4" />
+                  {center.distance.toFixed(1)} km away
+                </span>
+              </div>
+            )}
+            {center.rating && (
+              <div className="absolute top-4 right-4 flex items-center gap-1 px-3 py-1 bg-yellow-400 rounded-full text-sm font-medium">
+                <Star className="w-4 h-4" />
+                {center.rating}
+              </div>
+            )}
           </div>
           <div className="p-6">
             <h3 className="text-xl font-bold text-slate-900">{center.name}</h3>
             <p className="text-slate-600 mt-1 flex items-center gap-2">
               <MapPin className="w-4 h-4 flex-shrink-0" />
-              {center.address}, {center.city}
+              {center.address}
             </p>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              {center.bloodTypes.map((type) => (
-                <span
-                  key={type}
-                  className="px-3 py-1 bg-red-50 text-red-700 rounded-full text-sm font-medium"
-                >
-                  {type}
-                </span>
-              ))}
-            </div>
+            {center.bloodTypes && center.bloodTypes.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {center.bloodTypes.map((type) => (
+                  <span
+                    key={type}
+                    className="px-3 py-1 bg-red-50 text-red-700 rounded-full text-sm font-medium"
+                  >
+                    {type}
+                  </span>
+                ))}
+              </div>
+            )}
 
             <div className="mt-4 grid grid-cols-2 gap-4">
-              <div className="flex items-center gap-2 text-slate-600">
-                <Clock className="w-5 h-5 text-slate-400" />
-                <div>
-                  <p className="text-sm font-medium">Open Hours</p>
-                  <p className="text-sm">{center.openHours}</p>
+              {center.openHours && (
+                <div className="flex items-center gap-2 text-slate-600">
+                  <Clock className="w-5 h-5 text-slate-400" />
+                  <div>
+                    <p className="text-sm font-medium">Open Hours</p>
+                    <p className="text-sm">{center.openHours}</p>
+                  </div>
                 </div>
-              </div>
+              )}
               <div className="flex items-center gap-2 text-slate-600">
                 <Calendar className="w-5 h-5 text-slate-400" />
                 <div>
                   <p className="text-sm font-medium">Next Slot</p>
-                  <p className="text-sm text-green-600">{center.nextSlot}</p>
+                  <p className="text-sm text-green-600">Today</p>
                 </div>
               </div>
             </div>

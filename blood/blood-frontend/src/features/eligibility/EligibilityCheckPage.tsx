@@ -11,38 +11,63 @@ import {
   Activity,
   Calendar,
   Shield,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
+import { useCheckEligibility } from "@/shared/api/generated/donation-controller/donation-controller";
+
+interface Question {
+  id: keyof EligibilityAnswers;
+  question: string;
+  type: "number" | "boolean" | "date";
+  placeholder?: string;
+  validate?: (value: string | boolean) => string | null;
+  optional?: boolean;
+}
+
+interface EligibilityAnswers {
+  age: string;
+  weightKg: string;
+  feelingWell: boolean | null;
+  hasFeverOrInfection: boolean | null;
+  recentlyTattooedOrPierced: boolean | null;
+  pregnantOrRecentlyPregnant: boolean | null;
+  takingAntibiotics: boolean | null;
+  hadRecentSurgery: boolean | null;
+  lastDonationDate: string;
+}
 
 interface EligibilityResult {
   status: "eligible" | "needs_review" | "deferred";
   canProceed: boolean;
   reasons: string[];
   message: string;
+  nextStep?: string;
 }
 
-const QUESTIONS = [
+const QUESTIONS: Question[] = [
   {
     id: "age",
     question: "What is your age?",
     type: "number",
     placeholder: "Enter your age",
-    validate: (value: string) => {
-      const age = parseInt(value);
+    validate: (value) => {
+      const age = parseInt(value as string);
       if (isNaN(age)) return "Please enter a valid age";
-      if (age < 18) return "You must be at least 18 years old to donate";
-      if (age > 60) return "Donors over 60 may need additional medical clearance";
+      if (age < 16) return "You must be at least 16 years old to donate";
+      if (age > 70) return "Donors over 70 may need additional medical clearance";
       return null;
     },
   },
   {
-    id: "weight",
+    id: "weightKg",
     question: "What is your weight (in kg)?",
     type: "number",
     placeholder: "Enter your weight",
-    validate: (value: string) => {
-      const weight = parseFloat(value);
+    validate: (value) => {
+      const weight = parseFloat(value as string);
       if (isNaN(weight)) return "Please enter a valid weight";
-      if (weight < 45) return "You must weigh at least 45 kg to donate";
+      if (weight < 30) return "You must weigh at least 30 kg to donate";
       return null;
     },
   },
@@ -50,70 +75,57 @@ const QUESTIONS = [
     id: "feelingWell",
     question: "Are you feeling well today?",
     type: "boolean",
-    options: [
-      { value: "yes", label: "Yes, I feel healthy and well" },
-      { value: "no", label: "No, I'm not feeling well today" },
-    ],
   },
   {
     id: "hasFeverOrInfection",
     question: "Do you currently have a fever or active infection?",
     type: "boolean",
-    options: [
-      { value: "yes", label: "Yes, I have a fever or infection" },
-      { value: "no", label: "No, I'm healthy" },
-    ],
   },
   {
     id: "takingAntibiotics",
     question: "Are you currently taking antibiotics?",
     type: "boolean",
-    options: [
-      { value: "yes", label: "Yes" },
-      { value: "no", label: "No" },
-    ],
   },
   {
     id: "recentlyTattooedOrPierced",
     question: "Have you had a tattoo or body piercing in the last 6 months?",
     type: "boolean",
-    options: [
-      { value: "yes", label: "Yes" },
-      { value: "no", label: "No" },
-    ],
   },
   {
     id: "pregnantOrRecentlyPregnant",
     question: "Are you currently pregnant or have given birth in the last 12 months?",
     type: "boolean",
-    options: [
-      { value: "yes", label: "Yes" },
-      { value: "no", label: "No" },
-    ],
   },
   {
     id: "hadRecentSurgery",
     question: "Have you had any surgery or major dental work in the last 6 months?",
     type: "boolean",
-    options: [
-      { value: "yes", label: "Yes" },
-      { value: "no", label: "No" },
-    ],
   },
   {
     id: "lastDonationDate",
     question: "When was your last blood donation (if any)?",
     type: "date",
-    placeholder: "Select date or skip if first time",
     optional: true,
   },
 ];
 
 export function EligibilityCheckPage() {
   const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<EligibilityAnswers>({
+    age: "",
+    weightKg: "",
+    feelingWell: null,
+    hasFeverOrInfection: null,
+    takingAntibiotics: null,
+    recentlyTattooedOrPierced: null,
+    pregnantOrRecentlyPregnant: null,
+    hadRecentSurgery: null,
+    lastDonationDate: "",
+  });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [result, setResult] = useState<EligibilityResult | null>(null);
+
+  const checkEligibilityMutation = useCheckEligibility();
 
   const currentQuestion = QUESTIONS[currentStep];
   const isLastStep = currentStep === QUESTIONS.length - 1;
@@ -126,13 +138,13 @@ export function EligibilityCheckPage() {
     if (currentQuestion.optional && !answers[currentQuestion.id]) return true;
 
     const value = answers[currentQuestion.id];
-    if (!value && !currentQuestion.optional) {
+    if ((value === null || value === "") && !currentQuestion.optional) {
       setErrors({ [currentQuestion.id]: "This field is required" });
       return false;
     }
 
-    if (currentQuestion.validate) {
-      const error = currentQuestion.validate(value || "");
+    if (currentQuestion.validate && typeof value !== "boolean") {
+      const error = currentQuestion.validate(value as string);
       if (error) {
         setErrors({ [currentQuestion.id]: error });
         return false;
@@ -143,11 +155,11 @@ export function EligibilityCheckPage() {
     return true;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!validateCurrentStep()) return;
 
     if (isLastStep) {
-      calculateResult();
+      await submitToBackend();
     } else {
       setCurrentStep(currentStep + 1);
     }
@@ -160,90 +172,136 @@ export function EligibilityCheckPage() {
     }
   };
 
-  const handleInputChange = (value: string) => {
+  const handleInputChange = (value: string | boolean) => {
     setAnswers({ ...answers, [currentQuestion.id]: value });
     if (errors[currentQuestion.id]) {
       setErrors({});
     }
   };
 
-  const calculateResult = () => {
+  const submitToBackend = async () => {
+    const payload = {
+      age: parseInt(answers.age) || undefined,
+      weightKg: parseFloat(answers.weightKg) || undefined,
+      feelingWell: answers.feelingWell ?? false,
+      hasFeverOrInfection: answers.hasFeverOrInfection ?? false,
+      takingAntibiotics: answers.takingAntibiotics ?? false,
+      recentlyTattooedOrPierced: answers.recentlyTattooedOrPierced ?? false,
+      pregnantOrRecentlyPregnant: answers.pregnantOrRecentlyPregnant ?? false,
+      hadRecentSurgery: answers.hadRecentSurgery ?? false,
+      lastDonationDate: answers.lastDonationDate || undefined,
+    };
+
+    try {
+      const response = await checkEligibilityMutation.mutateAsync({ data: payload });
+      const data = (response?.data as any)?.data;
+
+      if (!data) {
+        toast.error("Invalid response from server");
+        return;
+      }
+
+      const status =
+        data.status === "ELIGIBLE"
+          ? "eligible"
+          : data.status === "NEEDS_REVIEW"
+          ? "needs_review"
+          : "deferred";
+
+      setResult({
+        status,
+        canProceed: data.canProceedToBooking ?? false,
+        reasons: data.reasons ?? [],
+        message: data.nextStep ?? getDefaultMessage(status),
+        nextStep: data.nextStep,
+      });
+    } catch (err) {
+      // Fallback to local calculation on error so the UX is preserved
+      toast.warning("Server unavailable, using local evaluation");
+      const localResult = calculateResultLocally();
+      setResult(localResult);
+    }
+  };
+
+  const calculateResultLocally = (): EligibilityResult => {
     const reasons: string[] = [];
     let status: "eligible" | "needs_review" | "deferred" = "eligible";
 
-    // Age check
     const age = parseInt(answers.age);
-    if (age < 18) {
-      reasons.push("You must be at least 18 years old to donate blood");
+    if (age < 16) {
+      reasons.push("You must be at least 16 years old to donate blood");
       status = "deferred";
-    } else if (age > 60) {
-      reasons.push("Donors over 60 may need additional medical clearance from a doctor");
+    } else if (age > 70) {
+      reasons.push("Donors over 70 may need additional medical clearance from a doctor");
       status = "needs_review";
     }
 
-    // Weight check
-    const weight = parseFloat(answers.weight);
-    if (weight < 45) {
-      reasons.push("You must weigh at least 45 kg to donate blood");
+    const weight = parseFloat(answers.weightKg);
+    if (weight < 30) {
+      reasons.push("You must weigh at least 30 kg to donate blood");
       status = "deferred";
     }
 
-    // Health status
-    if (answers.feelingWell === "no") {
+    if (answers.feelingWell === false) {
       reasons.push("You should be feeling well on the day of donation");
       status = "deferred";
     }
 
-    // Fever/infection
-    if (answers.hasFeverOrInfection === "yes") {
+    if (answers.hasFeverOrInfection === true) {
       reasons.push("Fever or active infection requires complete recovery before donation");
       status = "deferred";
     }
 
-    // Antibiotics
-    if (answers.takingAntibiotics === "yes") {
+    if (answers.takingAntibiotics === true) {
       reasons.push("Please complete your antibiotic course before donating");
       status = "needs_review";
     }
 
-    // Tattoo/piercing
-    if (answers.recentlyTattooedOrPierced === "yes") {
+    if (answers.recentlyTattooedOrPierced === true) {
       reasons.push("Please wait at least 6 months after getting a tattoo or piercing");
       status = "needs_review";
     }
 
-    // Pregnancy
-    if (answers.pregnantOrRecentlyPregnant === "yes") {
+    if (answers.pregnantOrRecentlyPregnant === true) {
       reasons.push("Please wait at least 12 months after childbirth before donating");
       status = "needs_review";
     }
 
-    // Surgery
-    if (answers.hadRecentSurgery === "yes") {
+    if (answers.hadRecentSurgery === true) {
       reasons.push("Please wait at least 6 months after surgery before donating");
       status = "needs_review";
     }
 
-    let message = "";
-    if (status === "eligible") {
-      message = "Great news! You appear to be eligible to donate blood. You can proceed to book an appointment.";
-    } else if (status === "needs_review") {
-      message = "You may still be able to donate, but our medical staff will review your answers on-site before donation.";
-    } else {
-      message = "Unfortunately, you cannot donate at this time. Please review the reasons below and try again when the conditions are resolved.";
-    }
-
-    setResult({
+    return {
       status,
       canProceed: status !== "deferred",
       reasons,
-      message,
-    });
+      message: getDefaultMessage(status),
+    };
+  };
+
+  const getDefaultMessage = (status: "eligible" | "needs_review" | "deferred"): string => {
+    if (status === "eligible") {
+      return "Great news! You appear to be eligible to donate blood. You can proceed to book an appointment.";
+    } else if (status === "needs_review") {
+      return "You may still be able to donate, but our medical staff will review your answers on-site before donation.";
+    }
+    return "Unfortunately, you cannot donate at this time. Please review the reasons below and try again when the conditions are resolved.";
   };
 
   const resetCheck = () => {
     setCurrentStep(0);
-    setAnswers({});
+    setAnswers({
+      age: "",
+      weightKg: "",
+      feelingWell: null,
+      hasFeverOrInfection: null,
+      takingAntibiotics: null,
+      recentlyTattooedOrPierced: null,
+      pregnantOrRecentlyPregnant: null,
+      hadRecentSurgery: null,
+      lastDonationDate: "",
+    });
     setErrors({});
     setResult(null);
   };
@@ -301,17 +359,14 @@ export function EligibilityCheckPage() {
             {currentQuestion.question}
           </h2>
 
-          {/* Input Types */}
           {currentQuestion.type === "number" && (
             <div>
               <input
                 type="number"
                 placeholder={currentQuestion.placeholder}
-                value={answers[currentQuestion.id] || ""}
+                value={(answers[currentQuestion.id] as string) || ""}
                 onChange={(e) => handleInputChange(e.target.value)}
                 className="w-full px-4 py-4 border-2 border-slate-200 rounded-xl text-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all"
-                min={currentQuestion.id === "age" ? 1 : 1}
-                max={currentQuestion.id === "age" ? 120 : 300}
               />
               {errors[currentQuestion.id] && (
                 <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
@@ -324,9 +379,12 @@ export function EligibilityCheckPage() {
 
           {currentQuestion.type === "boolean" && (
             <div className="space-y-3">
-              {currentQuestion.options?.map((option) => (
+              {[
+                { value: true, label: "Yes" },
+                { value: false, label: "No" },
+              ].map((option) => (
                 <label
-                  key={option.value}
+                  key={String(option.value)}
                   className={`flex items-center gap-4 p-4 border-2 rounded-xl cursor-pointer transition-all ${
                     answers[currentQuestion.id] === option.value
                       ? "border-red-500 bg-red-50"
@@ -336,7 +394,7 @@ export function EligibilityCheckPage() {
                   <input
                     type="radio"
                     name={currentQuestion.id}
-                    value={option.value}
+                    value={String(option.value)}
                     checked={answers[currentQuestion.id] === option.value}
                     onChange={() => handleInputChange(option.value)}
                     className="w-5 h-5 text-red-600 focus:ring-red-500"
@@ -357,7 +415,7 @@ export function EligibilityCheckPage() {
             <div>
               <input
                 type="date"
-                value={answers[currentQuestion.id] || ""}
+                value={(answers[currentQuestion.id] as string) || ""}
                 onChange={(e) => handleInputChange(e.target.value)}
                 max={new Date().toISOString().split("T")[0]}
                 className="w-full px-4 py-4 border-2 border-slate-200 rounded-xl text-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all"
@@ -365,12 +423,6 @@ export function EligibilityCheckPage() {
               <p className="mt-2 text-sm text-slate-500">
                 Leave empty if this is your first time donating
               </p>
-              {errors[currentQuestion.id] && (
-                <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" />
-                  {errors[currentQuestion.id]}
-                </p>
-              )}
             </div>
           )}
         </div>
@@ -391,10 +443,25 @@ export function EligibilityCheckPage() {
           </button>
           <button
             onClick={handleNext}
-            className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors"
+            disabled={checkEligibilityMutation.isPending}
+            className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
           >
-            {isLastStep ? "See Results" : "Next"}
-            <ChevronRight className="w-5 h-5" />
+            {checkEligibilityMutation.isPending ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Submitting...
+              </>
+            ) : isLastStep ? (
+              <>
+                See Results
+                <ChevronRight className="w-5 h-5" />
+              </>
+            ) : (
+              <>
+                Next
+                <ChevronRight className="w-5 h-5" />
+              </>
+            )}
           </button>
         </div>
 
@@ -457,7 +524,6 @@ function EligibilityResultView({
   return (
     <div className="min-h-screen bg-slate-50 py-8">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Result Card */}
         <div className={`${config.bgColor} border-2 ${config.borderColor} rounded-2xl p-8 text-center`}>
           <div
             className={`w-20 h-20 ${config.bgColor} border-4 ${config.borderColor} rounded-full flex items-center justify-center mx-auto mb-6`}
@@ -481,7 +547,6 @@ function EligibilityResultView({
           )}
         </div>
 
-        {/* Next Steps */}
         {result.canProceed && (
           <div className="mt-6 bg-white rounded-2xl shadow-lg p-6">
             <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
@@ -506,7 +571,6 @@ function EligibilityResultView({
           </div>
         )}
 
-        {/* Retry Button */}
         <div className="mt-6 text-center">
           <button
             onClick={onReset}
@@ -517,7 +581,6 @@ function EligibilityResultView({
           </button>
         </div>
 
-        {/* Medical Disclaimer */}
         <div className="mt-8 p-4 bg-slate-100 rounded-xl">
           <p className="text-sm text-slate-600 text-center">
             <strong>Note:</strong> This is a preliminary check only. Final eligibility is determined by
