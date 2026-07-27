@@ -34,7 +34,7 @@ public class ExaminationService {
         Examination exam = examinationRepository.findByDonationRegistrationId(request.registrationId())
                 .orElse(Examination.builder()
                         .donationRegistration(reg)
-                        .status(Examination.ExaminationStatus.NEEDS_REVIEW)
+                        .status(Examination.ExaminationStatus.NEEDS_DOCTOR_REVIEW)
                         .build());
 
         exam.setBloodPressureSystolic(request.bloodPressureSystolic());
@@ -78,7 +78,7 @@ public class ExaminationService {
         Examination exam = examinationRepository.findById(examinationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Examination not found"));
 
-        exam.setStatus(Examination.ExaminationStatus.DEFERRED);
+        exam.setStatus(Examination.ExaminationStatus.FAILED);
         exam.setDeferralReason(reason);
         exam.setNextEligibleDate(nextDate);
         exam.setReviewedBy(medicalStaff);
@@ -86,7 +86,7 @@ public class ExaminationService {
         examinationRepository.save(exam);
 
         DonationRegistration reg = exam.getDonationRegistration();
-        reg.setStatus(DonationRegistrationStatus.REJECTED);
+        reg.setStatus(DonationRegistrationStatus.DEFERRED);
         registrationRepository.save(reg);
 
         auditService.log(medicalStaff.getId(), medicalStaff.getRole().name(),

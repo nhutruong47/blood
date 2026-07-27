@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/api/examinations")
-@PreAuthorize("hasAnyRole('STAFF', 'MEDICALCENTER', 'ADMIN')")
+@PreAuthorize("hasAnyRole('STAFF', 'MEDICAL_STAFF', 'MEDICALCENTER', 'ADMIN')")
 public class ExaminationController {
     private final ExaminationService examinationService;
 

@@ -46,13 +46,13 @@ public class Examination {
     @PrePersist
     protected void onCreate() {
         if (status == null) {
-            status = ExaminationStatus.NEEDS_REVIEW;
+            status = ExaminationStatus.NEEDS_DOCTOR_REVIEW;
         }
     }
 
     public enum ExaminationStatus {
-        NEEDS_REVIEW,
+        NEEDS_DOCTOR_REVIEW,
         PASSED,
-        DEFERRED
+        FAILED
     }
 }
