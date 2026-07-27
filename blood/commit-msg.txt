@@ -1,0 +1,3 @@
+feat: update documentation for badges
+
+Co-authored-by: Truong Thai Nhu <nhuttse180082@fpt.edu.vn>
