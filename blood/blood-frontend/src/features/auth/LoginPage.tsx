@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useNavigate } from "react-router-dom";
-import { useLogin } from "@/shared/api/generated/auth-controller/auth-controller";
+import { useAuth } from "@/contexts/AuthContext";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -14,6 +14,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [errorMsg, setErrorMsg] = useState("");
 
   const {
@@ -24,16 +25,11 @@ export function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
-  const loginMutation = useLogin();
-
   const onSubmit = async (data: LoginFormValues) => {
     setErrorMsg("");
     try {
-      const response = await loginMutation.mutateAsync({ data });
-      if (response.data?.data?.accessToken) {
-        localStorage.setItem("token", response.data.data.accessToken);
-        navigate("/dashboard");
-      }
+      await login(data.email, data.password);
+      navigate("/dashboard");
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Login failed. Please check your credentials.");
     }
