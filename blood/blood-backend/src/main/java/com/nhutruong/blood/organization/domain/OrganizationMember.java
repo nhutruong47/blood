@@ -3,6 +3,8 @@ package com.nhutruong.blood.organization.domain;
 import com.nhutruong.blood.identity.domain.Role;
 import com.nhutruong.blood.identity.domain.User;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -10,7 +12,9 @@ import java.time.LocalDateTime;
 
 @Entity
 @Data
+@Builder
 @NoArgsConstructor
+@AllArgsConstructor
 @Table(indexes = {
         @Index(name = "idx_org_member_user", columnList = "user_id"),
         @Index(name = "idx_org_member_org", columnList = "organization_id")
