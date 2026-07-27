@@ -14,6 +14,7 @@ import com.nhutruong.blood.inventory.domain.*;
 import com.nhutruong.blood.inventory.infrastructure.BloodUnitRepository;
 import com.nhutruong.blood.inventory.infrastructure.InventoryMovementRepository;
 import com.nhutruong.blood.inventory.infrastructure.LabTestRepository;
+import com.nhutruong.blood.donation.application.BloodCompatibilityService;
 import com.nhutruong.blood.shared.domain.BloodGroup;
 import com.nhutruong.blood.shared.exception.BusinessException;
 import com.nhutruong.blood.shared.exception.ErrorCode;
@@ -32,6 +33,8 @@ public class InventoryService {
     private final UserRepository userRepository;
     private final BloodRequestRepository bloodRequestRepository;
     private final AuditService auditService;
+    private final BloodCompatibilityService bloodCompatibilityService;
+    private final ReservationService reservationService;
 
     public InventoryService(
             BloodUnitRepository bloodUnitRepository,
@@ -39,7 +42,9 @@ public class InventoryService {
             InventoryMovementRepository movementRepository,
             UserRepository userRepository,
             BloodRequestRepository bloodRequestRepository,
-            AuditService auditService
+            AuditService auditService,
+            BloodCompatibilityService bloodCompatibilityService,
+            ReservationService reservationService
     ) {
         this.bloodUnitRepository = bloodUnitRepository;
         this.labTestRepository = labTestRepository;
@@ -47,6 +52,8 @@ public class InventoryService {
         this.userRepository = userRepository;
         this.bloodRequestRepository = bloodRequestRepository;
         this.auditService = auditService;
+        this.bloodCompatibilityService = bloodCompatibilityService;
+        this.reservationService = reservationService;
     }
 
     @Transactional
@@ -111,51 +118,26 @@ public class InventoryService {
 
     @Transactional
     public List<BloodUnit> reserve(ReserveBloodUnitsRequest request) {
-        BloodRequest bloodRequest = bloodRequestRepository.findById(request.bloodRequestId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Blood request not found"));
-
-        // Verify blood compatibility
-        BloodGroup requestBloodGroup = request.bloodGroup();
-        List<BloodGroup> compatibleGroups = getCompatibleBloodGroups(requestBloodGroup);
-
-        List<BloodUnit> candidates = new ArrayList<>();
-        for (BloodGroup bg : compatibleGroups) {
-            List<BloodUnit> units = bloodUnitRepository
-                    .findByBloodGroupAndComponentTypeAndStatusAndExpiryDateGreaterThanEqualOrderByExpiryDateAsc(
-                            bg,
-                            request.componentType(),
-                            BloodUnitStatus.AVAILABLE,
-                            LocalDate.now()
-                    );
-            candidates.addAll(units);
-        }
-
-        if (candidates.size() < request.quantity()) {
-            throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION, "Not enough available stock to reserve");
-        }
-
-        List<BloodUnit> reserved = candidates.stream().limit(request.quantity()).toList();
-        for (BloodUnit unit : reserved) {
-            BloodUnitStatus previous = unit.getStatus();
-            unit.setStatus(BloodUnitStatus.RESERVED);
-            unit.setReservedFor(bloodRequest);
-            recordMovement(unit, InventoryMovementType.RESERVE, previous, BloodUnitStatus.RESERVED, "Reserved for request #" + bloodRequest.getId());
-        }
-        List<BloodUnit> saved = bloodUnitRepository.saveAll(reserved);
-        auditService.record(null, AuditAction.RESERVE, "BloodRequest", bloodRequest.getId(), "Blood units reserved by FEFO");
-        return saved;
+        return reservationService.reserve(
+                request.bloodRequestId(),
+                request.bloodGroup(),
+                request.componentType(),
+                request.quantity()
+        );
     }
 
     @Transactional(readOnly = true)
     public boolean canReserve(ReserveBloodUnitsRequest request) {
-        long available = bloodUnitRepository
-                .findByBloodGroupAndComponentTypeAndStatusAndExpiryDateGreaterThanEqualOrderByExpiryDateAsc(
-                        request.bloodGroup(),
-                        request.componentType(),
-                        BloodUnitStatus.AVAILABLE,
-                        LocalDate.now()
-                )
-                .size();
+        long available = bloodCompatibilityService.getCompatibleDonorGroups(request.bloodGroup()).stream()
+                .mapToLong(group -> bloodUnitRepository
+                        .findByBloodGroupAndComponentTypeAndStatusAndExpiryDateGreaterThanEqualOrderByExpiryDateAsc(
+                                group,
+                                request.componentType(),
+                                BloodUnitStatus.AVAILABLE,
+                                LocalDate.now()
+                        )
+                        .size())
+                .sum();
         return available >= request.quantity();
     }
 
@@ -225,22 +207,7 @@ public class InventoryService {
         movementRepository.save(movement);
     }
 
-    /**
-     * Get compatible blood groups for transfusion.
-     * Universal donor: O- can give to all.
-     * Universal recipient: AB+ can receive from all.
-     */
     private List<BloodGroup> getCompatibleBloodGroups(BloodGroup requested) {
-        return switch (requested) {
-            case O_NEGATIVE -> List.of(BloodGroup.O_NEGATIVE);
-            case O_POSITIVE -> List.of(BloodGroup.O_NEGATIVE, BloodGroup.O_POSITIVE);
-            case A_NEGATIVE -> List.of(BloodGroup.O_NEGATIVE, BloodGroup.A_NEGATIVE);
-            case A_POSITIVE -> List.of(BloodGroup.O_NEGATIVE, BloodGroup.O_POSITIVE, BloodGroup.A_NEGATIVE, BloodGroup.A_POSITIVE);
-            case B_NEGATIVE -> List.of(BloodGroup.O_NEGATIVE, BloodGroup.B_NEGATIVE);
-            case B_POSITIVE -> List.of(BloodGroup.O_NEGATIVE, BloodGroup.O_POSITIVE, BloodGroup.B_NEGATIVE, BloodGroup.B_POSITIVE);
-            case AB_NEGATIVE -> List.of(BloodGroup.O_NEGATIVE, BloodGroup.A_NEGATIVE, BloodGroup.B_NEGATIVE, BloodGroup.AB_NEGATIVE);
-            case AB_POSITIVE -> List.of(BloodGroup.O_NEGATIVE, BloodGroup.O_POSITIVE, BloodGroup.A_NEGATIVE, BloodGroup.A_POSITIVE,
-                    BloodGroup.B_NEGATIVE, BloodGroup.B_POSITIVE, BloodGroup.AB_NEGATIVE, BloodGroup.AB_POSITIVE);
-        };
+        return bloodCompatibilityService.getCompatibleDonorGroups(requested);
     }
 }
