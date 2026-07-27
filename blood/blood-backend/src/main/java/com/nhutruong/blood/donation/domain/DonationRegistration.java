@@ -1,8 +1,11 @@
 package com.nhutruong.blood.donation.domain;
 
+import com.nhutruong.blood.donation.domain.DonationSchedule;
 import com.nhutruong.blood.identity.domain.User;
 import com.nhutruong.blood.shared.domain.BloodGroup;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -11,7 +14,9 @@ import java.time.LocalDateTime;
 
 @Entity
 @Data
+@Builder
 @NoArgsConstructor
+@AllArgsConstructor
 public class DonationRegistration {
 
     @Id
@@ -25,12 +30,16 @@ public class DonationRegistration {
     private BloodGroup bloodGroup;
 
     private String healthStatus;
+    private String donorNotes;
     private double weight;
     private int amount;
     private int age;
 
     @ManyToOne(optional = false)
     private User donor;
+
+    @ManyToOne
+    private DonationSchedule schedule;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

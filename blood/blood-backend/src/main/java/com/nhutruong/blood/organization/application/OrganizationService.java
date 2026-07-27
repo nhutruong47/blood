@@ -43,18 +43,35 @@ public class OrganizationService {
         organization.setLongitude(request.longitude());
 
         Organization saved = organizationRepository.save(organization);
-        auditService.record(null, AuditAction.CREATE, "Organization", saved.getId(), "Organization created");
+        auditService.log(null, "SYSTEM", AuditAction.CREATE, "Organization", String.valueOf(saved.getId()), "Organization created");
         return saved;
+    }
+
+    @Transactional(readOnly = true)
+    public Organization findById(Long id) {
+        return organizationRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Organization not found"));
     }
 
     @Transactional
     public Organization verify(Long id) {
-        Organization organization = organizationRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Organization not found"));
-        organization.setStatus(OrganizationStatus.VERIFIED);
-        organization.setVerifiedAt(LocalDateTime.now());
-        Organization saved = organizationRepository.save(organization);
-        auditService.record(null, AuditAction.APPROVE, "Organization", saved.getId(), "Organization verified");
+        Organization org = findById(id);
+        if (org.getStatus() == OrganizationStatus.VERIFIED) {
+            throw new BusinessException(ErrorCode.CONFLICT, "Organization is already verified");
+        }
+        org.setStatus(OrganizationStatus.VERIFIED);
+        org.setVerifiedAt(LocalDateTime.now());
+        Organization saved = organizationRepository.save(org);
+        auditService.log(null, "ADMIN", AuditAction.ORGANIZATION_VERIFIED, "Organization", String.valueOf(saved.getId()), "Organization verified");
+        return saved;
+    }
+
+    @Transactional
+    public Organization reject(Long id, String reason) {
+        Organization org = findById(id);
+        org.setStatus(OrganizationStatus.REJECTED);
+        Organization saved = organizationRepository.save(org);
+        auditService.log(null, "ADMIN", AuditAction.ORGANIZATION_REJECTED, "Organization", String.valueOf(saved.getId()), "Rejected: " + reason);
         return saved;
     }
 

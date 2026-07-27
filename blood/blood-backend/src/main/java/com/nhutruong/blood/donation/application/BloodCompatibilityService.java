@@ -41,6 +41,10 @@ public class BloodCompatibilityService {
                 .toList();
     }
 
+    public List<BloodGroup> getCompatibleDonorGroups(BloodGroup recipient) {
+        return RECEIVE_FROM.getOrDefault(recipient, List.of());
+    }
+
     public BloodCompatibilityResponse forGroup(BloodGroup bloodGroup) {
         return new BloodCompatibilityResponse(
                 bloodGroup,

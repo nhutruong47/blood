@@ -116,6 +116,12 @@ class PublicApiSmokeTests {
     }
 
     @Test
+    void exposesHealthCheckWithoutAuthentication() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void exposesRobotsTxt() throws Exception {
         mockMvc.perform(get("/robots.txt"))
                 .andExpect(status().isOk())
@@ -171,6 +177,25 @@ class PublicApiSmokeTests {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.status").value("ELIGIBLE"))
                 .andExpect(jsonPath("$.data.canProceedToBooking").value(true));
+    }
+
+    @Test
+    void acceptsForgotPasswordRequestWithoutLeakingAccountExistence() throws Exception {
+        mockMvc.perform(post("/api/forgot-password")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "email": "unknown@example.com"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void requiresAuthenticationForCurrentUser() throws Exception {
+        mockMvc.perform(get("/api/me"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.nhutruong.blood.identity.api;
 
 import com.nhutruong.blood.identity.application.AuthService;
 import com.nhutruong.blood.identity.application.dto.CurrentUserResponse;
+import com.nhutruong.blood.identity.application.dto.ForgotPasswordRequest;
 import com.nhutruong.blood.identity.application.dto.LoginRequest;
 import com.nhutruong.blood.identity.application.dto.LoginResponse;
 import com.nhutruong.blood.identity.application.dto.RegisterRequest;
@@ -10,11 +11,14 @@ import com.nhutruong.blood.shared.api.ApiResponse;
 import com.nhutruong.blood.shared.security.SessionUser;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import com.nhutruong.blood.identity.application.RefreshTokenService;
 import com.nhutruong.blood.shared.security.JwtTokenProvider;
 
+@Slf4j
 @RestController
 @RequestMapping("/api")
 public class AuthController {
@@ -43,6 +47,12 @@ public class AuthController {
         return ApiResponse.success("Login successful", response);
     }
 
+    @PostMapping("/forgot-password")
+    public ApiResponse<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.requestPasswordReset(request.email());
+        return ApiResponse.success("If that email exists, a reset link has been sent.", null);
+    }
+
     @PostMapping("/refresh")
     public ApiResponse<LoginResponse> refreshtoken(@Valid @RequestBody com.nhutruong.blood.identity.application.dto.TokenRefreshRequest request) {
         String requestRefreshToken = request.refreshToken();
@@ -67,8 +77,18 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ApiResponse<Void> logout(HttpSession session) {
+    public ApiResponse<Void> logout(
+            @AuthenticationPrincipal User user,
+            HttpSession session
+    ) {
+        if (user != null) {
+            try {
+                refreshTokenService.deleteByUserId(user.getId());
+            } catch (Exception exception) {
+                log.warn("Could not delete refresh token during logout: {}", exception.getMessage());
+            }
+        }
         session.invalidate();
-        return ApiResponse.success("Logged out", null);
+        return ApiResponse.success("Logged out successfully", null);
     }
 }

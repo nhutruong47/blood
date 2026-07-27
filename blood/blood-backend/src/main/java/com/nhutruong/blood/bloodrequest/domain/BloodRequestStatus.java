@@ -7,6 +7,9 @@ public enum BloodRequestStatus {
     REJECTED,
     MATCHING_DONOR,
     RESERVED,
+    DISPATCHING,
+    DELIVERED,
     FULFILLED,
+    CLOSED,
     CANCELLED
 }

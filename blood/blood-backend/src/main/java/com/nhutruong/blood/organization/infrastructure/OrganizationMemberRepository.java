@@ -11,4 +11,6 @@ public interface OrganizationMemberRepository extends JpaRepository<Organization
     List<OrganizationMember> findByUserAndActiveTrue(User user);
 
     List<OrganizationMember> findByOrganizationAndActiveTrue(Organization organization);
+
+    List<OrganizationMember> findByOrganizationIdAndActiveTrue(Long organizationId);
 }

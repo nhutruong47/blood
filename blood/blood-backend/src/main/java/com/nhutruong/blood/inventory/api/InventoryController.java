@@ -4,6 +4,7 @@ import com.nhutruong.blood.inventory.application.InventoryService;
 import com.nhutruong.blood.inventory.application.dto.*;
 import com.nhutruong.blood.shared.api.ApiResponse;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,11 +19,13 @@ public class InventoryController {
     }
 
     @PostMapping("/units")
+    @PreAuthorize("hasAnyRole('MEDICALCENTER', 'STAFF', 'ADMIN')")
     public ApiResponse<BloodUnitResponse> createUnit(@Valid @RequestBody CreateBloodUnitRequest request) {
         return ApiResponse.success("Blood unit created", BloodUnitResponse.from(inventoryService.createUnit(request)));
     }
 
     @PostMapping("/units/{id}/lab-tests")
+    @PreAuthorize("hasAnyRole('LAB_STAFF', 'STAFF', 'MEDICALCENTER', 'ADMIN')")
     public ApiResponse<BloodUnitResponse> recordLabTest(
             @PathVariable Long id,
             @Valid @RequestBody RecordLabTestRequest request
@@ -31,6 +34,7 @@ public class InventoryController {
     }
 
     @PostMapping("/reserve")
+    @PreAuthorize("hasAnyRole('STAFF', 'MEDICALCENTER', 'ADMIN')")
     public ApiResponse<List<BloodUnitResponse>> reserve(@Valid @RequestBody ReserveBloodUnitsRequest request) {
         return ApiResponse.success(
                 "Blood units reserved",
@@ -39,11 +43,13 @@ public class InventoryController {
     }
 
     @PostMapping("/units/{id}/dispatch")
+    @PreAuthorize("hasAnyRole('MEDICALCENTER', 'STAFF', 'ADMIN')")
     public ApiResponse<BloodUnitResponse> dispatch(@PathVariable Long id) {
         return ApiResponse.success("Blood unit dispatched", BloodUnitResponse.from(inventoryService.dispatch(id)));
     }
 
     @GetMapping("/stock")
+    @PreAuthorize("isAuthenticated()")
     public ApiResponse<List<StockSummaryResponse>> stock() {
         return ApiResponse.success(inventoryService.stock());
     }
