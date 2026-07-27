@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.UUID;
 
@@ -33,7 +34,11 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .id(UUID.randomUUID().toString())
+                .issuer("blood-donation-platform")
                 .subject(username)
+                .claim("roles", userDetails.getAuthorities().stream()
+                        .map(authority -> authority.getAuthority())
+                        .toList())
                 .issuedAt(currentDate)
                 .expiration(expireDate)
                 .signWith(getSigningKey())
@@ -47,9 +52,21 @@ public class JwtTokenProvider {
     }
 
     private String ensureSecureSecret() {
-        if (jwtSecret == null || jwtSecret.isEmpty() || jwtSecret.length() < MIN_SECRET_LENGTH) {
-            log.warn("JWT secret is not configured or too short. Using a generated temporary secret. SET app.jwt-secret in production!");
-            return UUID.randomUUID().toString() + UUID.randomUUID().toString();
+        if (jwtSecret == null || jwtSecret.isEmpty()) {
+            throw new IllegalStateException(
+                    "CRITICAL: app.jwt-secret is not configured. "
+                            + "Set a secure secret (min 256 bits / 32 chars) in application-prod.properties. "
+                            + "Generated secret is FORBIDDEN in production."
+            );
+        }
+        if (jwtSecret.length() < MIN_SECRET_LENGTH) {
+            String message = "JWT secret too short (" + jwtSecret.length()
+                    + " chars). Minimum 32 chars required.";
+            if (Arrays.stream(new String[]{""})
+                    .anyMatch(profile -> System.getProperty("spring.profiles.active", "").contains("prod"))) {
+                throw new IllegalStateException(message);
+            }
+            log.warn("WARN: {}", message);
         }
         return jwtSecret;
     }

@@ -1,6 +1,7 @@
 package com.nhutruong.blood.identity.application;
 
 import com.nhutruong.blood.identity.domain.RefreshToken;
+import com.nhutruong.blood.identity.domain.UserStatus;
 import com.nhutruong.blood.identity.infrastructure.RefreshTokenRepository;
 import com.nhutruong.blood.identity.infrastructure.UserRepository;
 import com.nhutruong.blood.shared.exception.BusinessException;
@@ -32,6 +33,9 @@ public class RefreshTokenService {
 
     @Transactional
     public RefreshToken createRefreshToken(Long userId) {
+        refreshTokenRepository.findByUserId(userId)
+                .ifPresent(refreshTokenRepository::delete);
+
         RefreshToken refreshToken = new RefreshToken();
 
         refreshToken.setUser(userRepository.findById(userId).orElseThrow(
@@ -44,16 +48,24 @@ public class RefreshTokenService {
         return refreshToken;
     }
 
+    @Transactional
     public RefreshToken verifyExpiration(RefreshToken token) {
         if (token.getExpiryDate().compareTo(Instant.now()) < 0) {
             refreshTokenRepository.delete(token);
-            throw new BusinessException(ErrorCode.UNAUTHENTICATED, "Refresh token was expired. Please make a new signin request");
+            throw new BusinessException(ErrorCode.UNAUTHENTICATED,
+                    "Refresh token expired. Please sign in again.");
+        }
+        if (token.getUser() == null || token.getUser().getStatus() != UserStatus.ACTIVE) {
+            refreshTokenRepository.delete(token);
+            throw new BusinessException(ErrorCode.UNAUTHENTICATED, "User account is not active.");
         }
         return token;
     }
 
     @Transactional
     public int deleteByUserId(Long userId) {
-        return refreshTokenRepository.deleteByUser(userRepository.findById(userId).get());
+        return userRepository.findById(userId)
+                .map(refreshTokenRepository::deleteByUser)
+                .orElse(0);
     }
 }

@@ -2,6 +2,8 @@ package com.nhutruong.blood.shared.exception;
 
 import com.nhutruong.blood.shared.api.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -14,8 +16,12 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @Value("${spring.profiles.active:dev}")
+    private String activeProfile;
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Map<String, Object>>> handleBusinessException(
@@ -81,7 +87,10 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         Map<String, Object> body = errorBody(ErrorCode.INTERNAL_ERROR, request.getRequestURI());
-        body.put("type", exception.getClass().getSimpleName());
+        if (!activeProfile.contains("prod")) {
+            body.put("type", exception.getClass().getSimpleName());
+        }
+        log.error("Unexpected error at {}: {}", request.getRequestURI(), exception.getMessage(), exception);
         return ResponseEntity
                 .status(ErrorCode.INTERNAL_ERROR.status())
                 .body(ApiResponse.failure(ErrorCode.INTERNAL_ERROR.defaultMessage(), body));
