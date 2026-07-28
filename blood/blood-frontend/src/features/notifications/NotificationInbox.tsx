@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Bell,
   CheckCheck,
@@ -7,20 +7,31 @@ import {
   Calendar,
   Settings,
   Inbox,
-  AlertTriangle,
+  Loader2,
 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { formatRelativeTime } from "@/shared/utils/format";
+import {
+  getMyNotifications,
+  markNotificationRead,
+  type AdminNotification,
+} from "@/shared/api/admin-api";
 
 type NotificationType = "request" | "emergency" | "appointment" | "system";
 
-interface Notification {
-  id: number;
-  title: string;
-  body: string;
-  createdAt: string;
+interface Notification extends AdminNotification {
   read: boolean;
   type: NotificationType;
+}
+
+function mapType(channel?: string | null, referenceType?: string | null): NotificationType {
+  if (referenceType === "BLOOD_REQUEST") return "request";
+  if (referenceType === "EMERGENCY") return "emergency";
+  if (referenceType === "APPOINTMENT" || referenceType === "SCHEDULE") return "appointment";
+  if ((channel ?? "").toUpperCase().includes("EMERGENCY")) return "emergency";
+  return "system";
 }
 
 type FilterType = "all" | "unread" | "request" | "emergency" | "appointment" | "system";
@@ -48,56 +59,56 @@ const TYPE_COLOR: Record<NotificationType, string> = {
   system: "bg-slate-100 text-slate-700",
 };
 
-// Notification delivery is still in-progress in the backend. The inbox UI
-// shell is kept so once the /api/notifications endpoint is added the page
-// needs no further design work — only a query hook swap.
-const INITIAL_NOTIFICATIONS: Notification[] = [];
-
 export function NotificationInbox() {
-  const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
+  const queryClient = useQueryClient();
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["notifications", "me"],
+    queryFn: getMyNotifications,
+    refetchInterval: 30_000,
+  });
+  const readMutation = useMutation({
+    mutationFn: (id: number) => markNotificationRead(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications", "me"] }),
+    onError: () => toast.error("Could not mark notification as read"),
+  });
+
+  // Backend only stores `status`; we treat SENT as "read" client-side.
+  const notifications: Notification[] = useMemo(() => {
+    return (data ?? []).map(n => ({
+      ...n,
+      read: n.status === "SENT",
+      type: mapType(n.channel, n.referenceType),
+    }));
+  }, [data]);
+
   const [filter, setFilter] = useState<FilterType>("all");
 
-  const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
+  const unreadCount = useMemo(
+    () => notifications.filter(n => !n.read).length,
+    [notifications]
+  );
 
   const filtered = useMemo(() => {
     if (filter === "all") return notifications;
-    if (filter === "unread") return notifications.filter((n) => !n.read);
-    return notifications.filter((n) => n.type === filter);
+    if (filter === "unread") return notifications.filter(n => !n.read);
+    return notifications.filter(n => n.type === filter);
   }, [notifications, filter]);
-
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
-
-  const markRead = (id: number) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
-  };
 
   const counts: Record<FilterType, number> = {
     all: notifications.length,
     unread: unreadCount,
-    request: notifications.filter((n) => n.type === "request").length,
-    emergency: notifications.filter((n) => n.type === "emergency").length,
-    appointment: notifications.filter((n) => n.type === "appointment").length,
-    system: notifications.filter((n) => n.type === "system").length,
+    request: notifications.filter(n => n.type === "request").length,
+    emergency: notifications.filter(n => n.type === "emergency").length,
+    appointment: notifications.filter(n => n.type === "appointment").length,
+    system: notifications.filter(n => n.type === "system").length,
+  };
+
+  const markAllRead = () => {
+    notifications.filter(n => !n.read).forEach(n => readMutation.mutate(n.id));
   };
 
   return (
     <div className="space-y-6">
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 text-amber-800 text-sm">
-        <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="font-semibold">Notifications API pending</p>
-          <p>
-            The inbox UI is wired and ready. It will auto-populate once
-            <code className="px-1 bg-amber-100 rounded ml-1">
-              GET /api/notifications
-            </code>
-            is published.
-          </p>
-        </div>
-      </div>
-
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
@@ -128,7 +139,7 @@ export function NotificationInbox() {
         role="tablist"
         aria-label="Filter notifications"
       >
-        {(Object.keys(FILTER_LABELS) as FilterType[]).map((f) => {
+        {(Object.keys(FILTER_LABELS) as FilterType[]).map(f => {
           const isActive = filter === f;
           return (
             <button
@@ -157,7 +168,15 @@ export function NotificationInbox() {
         })}
       </div>
 
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-500 inline-flex gap-2 items-center justify-center w-full">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading notifications…
+        </div>
+      ) : isError ? (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-6">
+          Could not load notifications.
+        </div>
+      ) : filtered.length === 0 ? (
         <EmptyState
           title="No notifications yet"
           description="You will see booking confirmations, emergency alerts and certificates here."
@@ -165,7 +184,7 @@ export function NotificationInbox() {
         />
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
-          {filtered.map((notif) => {
+          {filtered.map(notif => {
             const Icon = TYPE_ICON[notif.type];
             const colorClass = TYPE_COLOR[notif.type];
             return (
@@ -196,8 +215,9 @@ export function NotificationInbox() {
                   </div>
                   {!notif.read && (
                     <button
-                      onClick={() => markRead(notif.id)}
-                      className="text-xs text-red-600 hover:text-red-700 font-medium"
+                      onClick={() => readMutation.mutate(notif.id)}
+                      disabled={readMutation.isPending}
+                      className="text-xs text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
                     >
                       Mark read
                     </button>

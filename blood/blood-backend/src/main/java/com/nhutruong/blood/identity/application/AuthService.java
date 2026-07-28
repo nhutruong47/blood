@@ -1,7 +1,9 @@
 package com.nhutruong.blood.identity.application;
 
+import com.nhutruong.blood.identity.application.dto.ChangePasswordRequest;
 import com.nhutruong.blood.identity.application.dto.LoginRequest;
 import com.nhutruong.blood.identity.application.dto.RegisterRequest;
+import com.nhutruong.blood.identity.application.dto.UpdateMeRequest;
 import com.nhutruong.blood.identity.domain.Role;
 import com.nhutruong.blood.identity.domain.User;
 import com.nhutruong.blood.identity.domain.UserStatus;
@@ -95,5 +97,29 @@ public class AuthService {
         userRepository.findByEmail(normalizedEmail).ifPresent(user -> {
             // Email delivery can be plugged in here without changing the public API contract.
         });
+    }
+
+    @Transactional
+    public User updateMe(User principal, UpdateMeRequest request) {
+        User user = userRepository.findById(principal.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "User not found"));
+        user.setFirstName(request.firstName().trim());
+        user.setLastName(request.lastName().trim());
+        return userRepository.save(user);
+    }
+
+    @Transactional
+    public void changePassword(User principal, ChangePasswordRequest request) {
+        if (!passwordEncoder.matches(request.currentPassword(), principal.getPassword())) {
+            throw new BusinessException(ErrorCode.UNAUTHENTICATED, "Current password is incorrect");
+        }
+        if (request.currentPassword().equals(request.newPassword())) {
+            throw new BusinessException(
+                    ErrorCode.VALIDATION_ERROR,
+                    "New password must be different from the current password"
+            );
+        }
+        principal.setPassword(passwordEncoder.encode(request.newPassword()));
+        userRepository.save(principal);
     }
 }

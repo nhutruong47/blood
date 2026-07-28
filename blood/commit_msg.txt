@@ -1,0 +1,42 @@
+phase3-5: Organization verification, Examination flow, Shipment tracking
+
+PHASE 3 - Organization Management:
+- OrganizationService: verify(), reject() methods with audit
+- OrganizationController: @PreAuthorize guards on verify/reject endpoints
+- AuditAction: EMERGENCY_ALERT, INVENTORY_RESERVED, INVENTORY_RELEASED
+- All services migrated to auditService.log() with proper signatures
+- EmergencyRequestService: fixed audit calls with correct user params
+
+PHASE 4 - Medical Examination:
+- Examination entity with vitals (BP, heart rate, temp, hemoglobin)
+- ExaminationRepository with findByRegistrationId
+- ExaminationService: recordVitals(), approve(), defer()
+- ExaminationController with role-based access (STAFF, MEDICALCENTER, ADMIN)
+- Links to DonationRegistration for donor examination workflow
+
+PHASE 5 - Shipment and Fulfillment:
+- Shipment entity with courier, pickup, delivery, checkpoints
+- ShipmentCheckpoint for cold-chain tracking
+- ShipmentService: create, markPickedUp, addCheckpoint, confirmDelivery
+- ShipmentController: full REST API with role-based access
+- Delivery confirmation transitions BloodRequest to FULFILLED
+
+SECURITY FIXES:
+- JwtTokenProvider: hard-fail on missing JWT secret
+- GlobalExceptionHandler: hide exception type in production
+- SecurityConfig: explicit permit for /api/register, /login, /refresh, /logout, /me
+- RefreshTokenService: proper rotation (delete old before create)
+- AuditContextFilter + CorrelationIdFilter for observability
+- @PreAuthorize on InventoryController endpoints
+
+INVENTORY FIXES:
+- ReservationService: pessimistic locking for concurrent safety
+- BloodUnitRepository: findAvailableByBloodGroupsWithLock
+- ExpiredUnitScheduledJob: nightly expiry processing
+- canReserve() now uses same compatibility logic as reserve()
+
+COMPILATION FIXES:
+- Removed orphaned code in AuditService.java
+- Removed broken methods in OrganizationService.java
+- Fixed all auditService.record() to auditService.log() migrations
+- Added missing imports throughout

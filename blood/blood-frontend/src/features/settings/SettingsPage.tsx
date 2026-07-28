@@ -14,9 +14,14 @@ import {
   Shield,
   User as UserIcon,
 } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMe } from "@/shared/api/generated/auth-controller/auth-controller";
+import {
+  changePassword,
+  updateMe,
+} from "@/shared/api/admin-api";
 
 type TabKey = "profile" | "notifications" | "security";
 
@@ -152,7 +157,7 @@ function ProfileTab() {
     register,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting, isDirty },
+    formState: { errors, isDirty },
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -175,15 +180,23 @@ function ProfileTab() {
     }
   }, [meQuery.data, reset, user?.firstName, user?.lastName]);
 
-  const onSubmit = async (data: ProfileFormValues) => {
-    // Backend profile-update endpoint (e.g. PATCH /api/users/me) is not yet
-    // exposed. Until then we keep the form valid locally and warn the user.
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    toast.warning("Profile update endpoint pending", {
-      description:
-        "Your changes are validated but not yet persisted to the server. This will activate once the /api/users/me PATCH endpoint is added.",
-    });
-    reset(data);
+  const updateMutation = useMutation({
+    mutationFn: (payload: Parameters<typeof updateMe>[0]) => updateMe(payload),
+    onSuccess: () => toast.success("Profile updated"),
+    onError: () => toast.error("Could not update profile"),
+  });
+
+  const onSubmit = (data: ProfileFormValues) => {
+    updateMutation.mutate(
+      {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone || undefined,
+      },
+      {
+        onSuccess: () => reset({ ...data, address: data.address ?? "" }),
+      }
+    );
   };
 
   return (
@@ -214,17 +227,17 @@ function ProfileTab() {
         <button
           type="button"
           onClick={() => reset()}
-          disabled={!isDirty || isSubmitting}
+          disabled={!isDirty || updateMutation.isPending}
           className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Cancel
         </button>
         <button
           type="submit"
-          disabled={!isDirty || isSubmitting}
+          disabled={!isDirty || updateMutation.isPending}
           className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
         >
-          {isSubmitting ? (
+          {updateMutation.isPending ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Saving...
             </>
@@ -396,20 +409,29 @@ function SecurityTab() {
     register,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordSchema),
   });
 
-  const onSubmit = async () => {
-    // Change-password endpoint (POST /api/users/me/change-password) is not
-    // yet exposed. Until then we validate locally and warn the user.
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    toast.warning("Password update endpoint pending", {
-      description:
-        "Your new password meets the requirements but cannot be persisted yet. This will activate once the change-password endpoint is added.",
+  const passwordMutation = useMutation({
+    mutationFn: (payload: Parameters<typeof changePassword>[0]) => changePassword(payload),
+    onSuccess: () => {
+      toast.success("Password updated");
+      reset();
+    },
+    onError: (error: any) => {
+      const message =
+        error?.response?.data?.message ?? "Could not update password";
+      toast.error(message);
+    },
+  });
+
+  const onSubmit = (data: PasswordFormValues) => {
+    passwordMutation.mutate({
+      currentPassword: data.currentPassword,
+      newPassword: data.newPassword,
     });
-    reset();
   };
 
   return (
@@ -452,10 +474,10 @@ function SecurityTab() {
       <div className="flex items-center justify-end pt-2">
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={passwordMutation.isPending}
           className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
         >
-          {isSubmitting ? (
+          {passwordMutation.isPending ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Updating...
             </>

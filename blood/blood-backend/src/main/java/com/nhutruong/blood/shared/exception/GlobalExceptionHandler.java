@@ -18,6 +18,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -42,6 +45,24 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(code.status())
                 .body(ApiResponse.failure(exception.getMessage(), errorBody(code, request.getRequestURI())));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleConstraintViolation(
+            ConstraintViolationException exception,
+            HttpServletRequest request
+    ) {
+        Map<String, String> fields = new LinkedHashMap<>();
+        for (ConstraintViolation<?> violation : exception.getConstraintViolations()) {
+            String path = violation.getPropertyPath().toString();
+            fields.put(path, violation.getMessage());
+        }
+        Map<String, Object> body = errorBody(ErrorCode.VALIDATION_ERROR, request.getRequestURI());
+        body.put("fields", fields);
+
+        return ResponseEntity
+                .badRequest()
+                .body(ApiResponse.failure(ErrorCode.VALIDATION_ERROR.defaultMessage(), body));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

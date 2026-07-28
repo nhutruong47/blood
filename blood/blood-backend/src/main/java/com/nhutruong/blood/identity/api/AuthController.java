@@ -1,11 +1,13 @@
 package com.nhutruong.blood.identity.api;
 
 import com.nhutruong.blood.identity.application.AuthService;
+import com.nhutruong.blood.identity.application.dto.ChangePasswordRequest;
 import com.nhutruong.blood.identity.application.dto.CurrentUserResponse;
 import com.nhutruong.blood.identity.application.dto.ForgotPasswordRequest;
 import com.nhutruong.blood.identity.application.dto.LoginRequest;
 import com.nhutruong.blood.identity.application.dto.LoginResponse;
 import com.nhutruong.blood.identity.application.dto.RegisterRequest;
+import com.nhutruong.blood.identity.application.dto.UpdateMeRequest;
 import com.nhutruong.blood.identity.domain.User;
 import com.nhutruong.blood.shared.api.ApiResponse;
 import com.nhutruong.blood.shared.security.SessionUser;
@@ -90,5 +92,23 @@ public class AuthController {
         }
         session.invalidate();
         return ApiResponse.success("Logged out successfully", null);
+    }
+
+    @PatchMapping("/users/me")
+    public ApiResponse<CurrentUserResponse> updateMe(
+            @AuthenticationPrincipal User user,
+            @Valid @RequestBody UpdateMeRequest request
+    ) {
+        User updated = authService.updateMe(user, request);
+        return ApiResponse.success("Profile updated", CurrentUserResponse.from(updated));
+    }
+
+    @PostMapping("/users/me/change-password")
+    public ApiResponse<Void> changePassword(
+            @AuthenticationPrincipal User user,
+            @Valid @RequestBody ChangePasswordRequest request
+    ) {
+        authService.changePassword(user, request);
+        return ApiResponse.success("Password updated successfully", null);
     }
 }

@@ -3,6 +3,8 @@ import { useMe } from '@/shared/api/generated/auth-controller/auth-controller';
 import { useStock } from '@/shared/api/generated/inventory-controller/inventory-controller';
 import { useGetPendingRequests } from '@/shared/api/generated/blood-request-controller/blood-request-controller';
 import { useAll as useAllOrganizations } from '@/shared/api/generated/organization-controller/organization-controller';
+import { getUsersCount } from '@/shared/api/admin-api';
+import { useQuery } from '@tanstack/react-query';
 
 interface StatCardProps {
   icon: React.ReactNode;
@@ -60,10 +62,13 @@ export function AdminDashboard() {
   );
   const organizations: any[] = (orgsData?.data as any)?.data ?? [];
 
-  // For "Total Users" we currently have no backend endpoint; show derived number
-  // (organizations x avg members is wrong). Surface "--" with a tooltip until
-  // a /api/admin/users endpoint is added.
-  const totalUsersLabel = '— (no API)';
+  // Total user count from the admin endpoint.
+  const { data: usersCount, isLoading: isUsersLoading } = useQuery({
+    queryKey: ['admin', 'users', 'count'],
+    queryFn: getUsersCount,
+    enabled: !!user,
+    refetchInterval: 60_000,
+  });
 
   return (
     <div className="space-y-6">
@@ -78,8 +83,9 @@ export function AdminDashboard() {
         <StatCard
           icon={<Users className="w-6 h-6" />}
           label="Total Users"
-          value={totalUsersLabel}
+          value={(usersCount as any)?.total ?? 0}
           color="bg-blue-500"
+          isLoading={isUsersLoading}
         />
         <StatCard
           icon={<Building className="w-6 h-6" />}
