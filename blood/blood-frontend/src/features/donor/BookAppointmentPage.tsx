@@ -1,14 +1,26 @@
 import { useState } from 'react';
-import { MapPin, CheckCircle } from 'lucide-react';
+import { MapPin, CheckCircle, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { usePublicLocations } from '@/shared/api/generated/donation-location-controller/donation-location-controller';
+import { useRegisterDonation } from '@/shared/api/generated/donation-controller/donation-controller';
 
-const BLOOD_TYPES = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];
+const BLOOD_TYPES = [
+  { value: 'O_POSITIVE', label: 'O+' },
+  { value: 'O_NEGATIVE', label: 'O-' },
+  { value: 'A_POSITIVE', label: 'A+' },
+  { value: 'A_NEGATIVE', label: 'A-' },
+  { value: 'B_POSITIVE', label: 'B+' },
+  { value: 'B_NEGATIVE', label: 'B-' },
+  { value: 'AB_POSITIVE', label: 'AB+' },
+  { value: 'AB_NEGATIVE', label: 'AB-' },
+] as const;
 
 export function BookAppointmentPage() {
   const navigate = useNavigate();
-  const { data: locationsResponse } = usePublicLocations();
+  const { data: locationsResponse, isLoading: isLocationsLoading } = usePublicLocations();
+  const registerMutation = useRegisterDonation();
+
   const [step, setStep] = useState(1);
   const [selectedLocation, setSelectedLocation] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState('');
@@ -17,15 +29,33 @@ export function BookAppointmentPage() {
 
   const locations = ((locationsResponse?.data as any)?.data as any[]) || [];
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedLocation || !selectedDate || !bloodType) {
       toast.error('Please fill in all required fields');
       return;
     }
-    toast.success(
-      'Appointment booked successfully! You will receive a confirmation shortly.'
-    );
-    navigate('/donor/dashboard');
+    try {
+      await registerMutation.mutateAsync({
+        data: {
+          medicalCenterName: selectedLocation.name,
+          donationDate: selectedDate,
+          bloodGroup: bloodType as any,
+          healthStatus: 'Self-declared via booking',
+          weight: 65,
+          amount: 450,
+          age: 30,
+        },
+      });
+      toast.success(
+        'Appointment booked successfully! You will receive a confirmation shortly.'
+      );
+      navigate('/donor/dashboard');
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message ??
+          'Could not book appointment. Please try again later.'
+      );
+    }
   };
 
   return (
@@ -60,15 +90,15 @@ export function BookAppointmentPage() {
             <div className="grid grid-cols-4 gap-3">
               {BLOOD_TYPES.map(bt => (
                 <button
-                  key={bt}
-                  onClick={() => setBloodType(bt)}
+                  key={bt.value}
+                  onClick={() => setBloodType(bt.value)}
                   className={`p-4 rounded-xl border-2 font-bold transition-all ${
-                    bloodType === bt
+                    bloodType === bt.value
                       ? 'border-red-600 bg-red-50 text-red-700'
                       : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  {bt}
+                  {bt.label}
                 </button>
               ))}
             </div>
@@ -88,7 +118,9 @@ export function BookAppointmentPage() {
           <>
             <h2 className="text-lg font-semibold mb-4">Step 2: Select Donation Center</h2>
             <div className="space-y-3 max-h-80 overflow-y-auto">
-              {locations.length === 0 ? (
+              {isLocationsLoading ? (
+                <p className="text-slate-500 text-center py-8">Loading centers…</p>
+              ) : locations.length === 0 ? (
                 <p className="text-slate-500 text-center py-8">
                   No donation centers available.
                 </p>
@@ -170,7 +202,9 @@ export function BookAppointmentPage() {
               <h3 className="font-semibold text-slate-900 mb-2">Appointment Summary</h3>
               <div className="grid grid-cols-2 gap-2 text-sm text-slate-600">
                 <span>Blood Type:</span>
-                <span className="font-medium">{bloodType}</span>
+                <span className="font-medium">
+                  {BLOOD_TYPES.find(b => b.value === bloodType)?.label}
+                </span>
                 <span>Location:</span>
                 <span className="font-medium">{selectedLocation?.name}</span>
                 <span>Date:</span>
@@ -189,9 +223,14 @@ export function BookAppointmentPage() {
               </button>
               <button
                 onClick={handleSubmit}
-                className="px-6 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 flex items-center gap-2"
+                disabled={registerMutation.isPending}
+                className="px-6 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 flex items-center gap-2 disabled:opacity-60"
               >
-                <CheckCircle className="w-5 h-5" />
+                {registerMutation.isPending ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <CheckCircle className="w-5 h-5" />
+                )}
                 Confirm Booking
               </button>
             </div>

@@ -78,7 +78,7 @@ public class SecurityConfig {
                                 "/api/auth/**"
                         ).permitAll()
                         .requestMatchers("/api/public/**", "/api/donate/eligibility-check").permitAll()
-                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/prometheus", "/actuator/info").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/robots.txt", "/sitemap.xml").permitAll()
                         .anyRequest().authenticated()

@@ -1,43 +1,37 @@
-import { useState } from 'react';
-import { Users, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Users, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
 
-const MOCK_QUEUE = [
-  { id: 1, name: 'Nguyen Van A', bloodType: 'O+', time: '09:00', status: 'pending' },
-  { id: 2, name: 'Tran Thi B', bloodType: 'A+', time: '09:30', status: 'checked_in' },
-  { id: 3, name: 'Le Van C', bloodType: 'B+', time: '10:00', status: 'pending' },
-];
+// The daily-queue endpoint is not yet published by the backend. Until the
+// medical-center controller exposes today's queue we render an honest empty
+// state with a developer-facing banner so the page does not mislead users.
 
 export function DailyOperationsBoard() {
-  const [queue, setQueue] = useState(MOCK_QUEUE);
-
-  const checkIn = (id: number) => {
-    setQueue(prev =>
-      prev.map(p => (p.id === id ? { ...p, status: 'checked_in' } : p))
-    );
-  };
-
-  const approve = (id: number) => {
-    setQueue(prev =>
-      prev.map(p => (p.id === id ? { ...p, status: 'approved' } : p))
-    );
-  };
-
-  const defer = (id: number) => {
-    setQueue(prev =>
-      prev.map(p => (p.id === id ? { ...p, status: 'deferred' } : p))
-    );
-  };
+  const queue: any[] = [];
 
   const stats = {
     total: queue.length,
-    checkedIn: queue.filter(q => q.status === 'checked_in').length,
-    approved: queue.filter(q => q.status === 'approved').length,
-    deferred: queue.filter(q => q.status === 'deferred').length,
+    checkedIn: 0,
+    approved: 0,
+    deferred: 0,
   };
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Daily Operations Board</h1>
+
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 text-amber-800 text-sm">
+        <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="font-semibold">Today's queue endpoint pending</p>
+          <p>
+            The medical-center daily-queue API is not yet exposed. The check-in /
+            approve / defer actions are stubbed and will activate once
+            <code className="px-1 bg-amber-100 rounded ml-1">
+              GET /api/medical-center/queue/today
+            </code>
+            is implemented.
+          </p>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
@@ -71,63 +65,10 @@ export function DailyOperationsBoard() {
           <h2 className="font-semibold">Donor Queue</h2>
         </div>
         <div className="divide-y divide-slate-100">
-          {queue.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">No donors in queue.</div>
-          ) : (
-            queue.map(donor => (
-              <div
-                key={donor.id}
-                className="p-4 flex items-center justify-between"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center font-bold text-red-600">
-                    {donor.bloodType}
-                  </div>
-                  <div>
-                    <p className="font-medium">{donor.name}</p>
-                    <p className="text-sm text-slate-500 flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> {donor.time}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {donor.status === 'pending' && (
-                    <button
-                      onClick={() => checkIn(donor.id)}
-                      className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200"
-                    >
-                      Check In
-                    </button>
-                  )}
-                  {donor.status === 'checked_in' && (
-                    <>
-                      <button
-                        onClick={() => approve(donor.id)}
-                        className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm font-medium hover:bg-green-200"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => defer(donor.id)}
-                        className="px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-sm font-medium hover:bg-orange-200"
-                      >
-                        Defer
-                      </button>
-                    </>
-                  )}
-                  {donor.status === 'approved' && (
-                    <span className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm font-medium flex items-center gap-1">
-                      <CheckCircle className="w-4 h-4" /> Approved
-                    </span>
-                  )}
-                  {donor.status === 'deferred' && (
-                    <span className="px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-sm font-medium flex items-center gap-1">
-                      <XCircle className="w-4 h-4" /> Deferred
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))
+          {queue.length === 0 && (
+            <div className="p-8 text-center text-slate-500">
+              No donors in queue today.
+            </div>
           )}
         </div>
       </div>

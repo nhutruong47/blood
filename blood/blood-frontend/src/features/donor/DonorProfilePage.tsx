@@ -8,6 +8,9 @@ export function DonorProfilePage() {
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [smsNotifications, setSmsNotifications] = useState(true);
 
+  const bloodType =
+    user?.bloodGroup?.replace('_POSITIVE', '+').replace('_NEGATIVE', '-') ?? '—';
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold">My Profile</h1>
@@ -26,23 +29,24 @@ export function DonorProfilePage() {
             </p>
             <div className="flex items-center gap-1 mt-1">
               <Droplet className="w-4 h-4 text-red-500" />
-              <span className="font-semibold text-red-600">
-                {user?.bloodGroup?.replace('_', ' ')}
-              </span>
+              <span className="font-semibold text-red-600">{bloodType}</span>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 text-center">
           <div className="p-4 bg-slate-50 rounded-xl">
-            <p className="text-3xl font-bold text-slate-900">--</p>
+            <p className="text-3xl font-bold text-slate-900">—</p>
             <p className="text-sm text-slate-500">Total Donations</p>
           </div>
           <div className="p-4 bg-slate-50 rounded-xl">
-            <p className="text-3xl font-bold text-slate-900">--</p>
+            <p className="text-3xl font-bold text-slate-900">—</p>
             <p className="text-sm text-slate-500">Lives Saved</p>
           </div>
         </div>
+        <p className="text-xs text-slate-400 mt-3 text-center">
+          Donation statistics endpoint pending — backend exposes DonationRegistration but not the donor-summary aggregation yet.
+        </p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-6">
@@ -61,6 +65,8 @@ export function DonorProfilePage() {
             </div>
             <button
               onClick={() => setEmergencyOptIn(!emergencyOptIn)}
+              role="switch"
+              aria-checked={emergencyOptIn}
               className={`w-12 h-7 rounded-full transition-colors ${
                 emergencyOptIn ? 'bg-red-600' : 'bg-slate-300'
               }`}
@@ -82,6 +88,8 @@ export function DonorProfilePage() {
             </div>
             <button
               onClick={() => setEmailNotifications(!emailNotifications)}
+              role="switch"
+              aria-checked={emailNotifications}
               className={`w-12 h-7 rounded-full transition-colors ${
                 emailNotifications ? 'bg-red-600' : 'bg-slate-300'
               }`}
@@ -103,6 +111,8 @@ export function DonorProfilePage() {
             </div>
             <button
               onClick={() => setSmsNotifications(!smsNotifications)}
+              role="switch"
+              aria-checked={smsNotifications}
               className={`w-12 h-7 rounded-full transition-colors ${
                 smsNotifications ? 'bg-red-600' : 'bg-slate-300'
               }`}
@@ -115,6 +125,9 @@ export function DonorProfilePage() {
             </button>
           </div>
         </div>
+        <p className="text-xs text-slate-400 mt-3">
+          Preferences are stored locally. Backend sync endpoint pending.
+        </p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-6">

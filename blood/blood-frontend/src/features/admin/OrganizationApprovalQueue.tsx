@@ -1,41 +1,53 @@
-import { useState } from 'react';
-import { Building, CheckCircle, XCircle, Clock, MapPin } from 'lucide-react';
-
-const MOCK_ORGS = [
-  {
-    id: 1,
-    name: 'Bệnh viện Chợ Rẫy',
-    type: 'HOSPITAL',
-    code: 'BV-CR-001',
-    address: '201B Nguyễn Chí Thanh, Q5, HCMC',
-    submittedAt: '2026-07-25',
-  },
-  {
-    id: 2,
-    name: 'Trung tâm HSTW HCMC',
-    type: 'MEDICAL_CENTER',
-    code: 'TT-HSTW-001',
-    address: '178 Pasteur, Q3, HCMC',
-    submittedAt: '2026-07-26',
-  },
-];
+import { Building, CheckCircle, XCircle, Clock, MapPin, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  useAll as useAllOrganizations,
+  useVerify as useVerifyOrganization,
+} from '@/shared/api/generated/organization-controller/organization-controller';
 
 export function OrganizationApprovalQueue() {
-  const [orgs, setOrgs] = useState(MOCK_ORGS);
+  const { data, isLoading, isError, refetch } = useAllOrganizations({
+    query: { refetchInterval: 60_000 },
+  });
+  const verifyMutation = useVerifyOrganization();
 
-  const approve = (id: number) => {
-    setOrgs(prev => prev.filter(o => o.id !== id));
-  };
+  const allOrgs: any[] = (data?.data as any)?.data ?? [];
+  // Only show orgs that are still awaiting verification.
+  const orgs = allOrgs.filter(
+    (o) => o.status === 'PENDING_VERIFICATION' || o.status === 'PENDING'
+  );
 
-  const reject = (id: number) => {
-    setOrgs(prev => prev.filter(o => o.id !== id));
+  const approve = async (id: number) => {
+    try {
+      await verifyMutation.mutateAsync({ id });
+      toast.success('Organization approved');
+      refetch();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? 'Failed to approve organization');
+    }
   };
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Organization Approval Queue</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Organization Approval Queue</h1>
+        <button
+          onClick={() => refetch()}
+          className="flex items-center gap-1 px-3 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
+        >
+          <RefreshCw className="w-4 h-4" /> Refresh
+        </button>
+      </div>
 
-      {orgs.length === 0 ? (
+      {isLoading ? (
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-500">
+          Loading pending organizations…
+        </div>
+      ) : isError ? (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-6">
+          Failed to load organizations. Please try again.
+        </div>
+      ) : orgs.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
           <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
           <p className="text-slate-600 font-medium">
@@ -44,7 +56,7 @@ export function OrganizationApprovalQueue() {
         </div>
       ) : (
         <div className="space-y-4">
-          {orgs.map(org => (
+          {orgs.map((org: any) => (
             <div
               key={org.id}
               className="bg-white rounded-xl border border-slate-200 p-6"
@@ -63,23 +75,29 @@ export function OrganizationApprovalQueue() {
                       </span>
                     </div>
                     <div className="flex items-center gap-1 mt-2 text-sm text-slate-500">
-                      <MapPin className="w-4 h-4" /> {org.address}
+                      <MapPin className="w-4 h-4" /> {org.address ?? '—'}
                     </div>
                     <div className="flex items-center gap-1 mt-1 text-sm text-slate-400">
-                      <Clock className="w-4 h-4" /> Submitted: {org.submittedAt}
+                      <Clock className="w-4 h-4" />
+                      Submitted:{' '}
+                      {org.createdAt
+                        ? new Date(org.createdAt).toLocaleDateString()
+                        : '—'}
                     </div>
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => approve(org.id)}
-                    className="flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                    disabled={verifyMutation.isPending}
+                    className="flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-60"
                   >
                     <CheckCircle className="w-4 h-4" /> Approve
                   </button>
                   <button
-                    onClick={() => reject(org.id)}
-                    className="flex items-center gap-1 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 font-medium"
+                    disabled
+                    className="flex items-center gap-1 px-4 py-2 border border-red-300 text-red-600 rounded-lg font-medium opacity-60 cursor-not-allowed"
+                    title="Reject endpoint pending"
                   >
                     <XCircle className="w-4 h-4" /> Reject
                   </button>

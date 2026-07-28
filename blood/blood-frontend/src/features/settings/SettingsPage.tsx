@@ -176,9 +176,12 @@ function ProfileTab() {
   }, [meQuery.data, reset, user?.firstName, user?.lastName]);
 
   const onSubmit = async (data: ProfileFormValues) => {
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    toast.success("Profile updated", {
-      description: `${data.firstName} ${data.lastName} has been saved.`,
+    // Backend profile-update endpoint (e.g. PATCH /api/users/me) is not yet
+    // exposed. Until then we keep the form valid locally and warn the user.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    toast.warning("Profile update endpoint pending", {
+      description:
+        "Your changes are validated but not yet persisted to the server. This will activate once the /api/users/me PATCH endpoint is added.",
     });
     reset(data);
   };
@@ -399,9 +402,12 @@ function SecurityTab() {
   });
 
   const onSubmit = async () => {
-    await new Promise((resolve) => setTimeout(resolve, 450));
-    toast.success("Password updated", {
-      description: "Your new password is now active.",
+    // Change-password endpoint (POST /api/users/me/change-password) is not
+    // yet exposed. Until then we validate locally and warn the user.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    toast.warning("Password update endpoint pending", {
+      description:
+        "Your new password meets the requirements but cannot be persisted yet. This will activate once the change-password endpoint is added.",
     });
     reset();
   };

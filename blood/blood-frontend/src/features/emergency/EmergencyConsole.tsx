@@ -1,36 +1,15 @@
-import { useState } from 'react';
-import { AlertTriangle, Phone, MapPin, Users, Clock, CheckCircle } from 'lucide-react';
-
-const MOCK_EMERGENCIES = [
-  {
-    id: 1,
-    bloodType: 'O-',
-    units: 4,
-    urgency: 'CRITICAL',
-    status: 'MATCHING_DONOR',
-    center: 'Cho Ray Hospital',
-    createdAt: '2026-07-27T09:00:00Z',
-    donorsAlerted: 20,
-    donorsResponded: 3,
-  },
-  {
-    id: 2,
-    bloodType: 'AB+',
-    units: 2,
-    urgency: 'HIGH',
-    status: 'RESERVED',
-    center: 'BVND TU',
-    createdAt: '2026-07-27T08:00:00Z',
-    donorsAlerted: 0,
-    donorsResponded: 0,
-  },
-];
+import { AlertTriangle, MapPin, Clock, CheckCircle, RefreshCw } from 'lucide-react';
+import { useGetPendingRequests } from '@/shared/api/generated/blood-request-controller/blood-request-controller';
 
 const STATUS_COLORS: Record<string, string> = {
   MATCHING_DONOR: 'bg-orange-100 text-orange-700',
   RESERVED: 'bg-green-100 text-green-700',
   DISPATCHING: 'bg-blue-100 text-blue-700',
   DELIVERED: 'bg-purple-100 text-purple-700',
+  APPROVED: 'bg-emerald-100 text-emerald-700',
+  REJECTED: 'bg-red-100 text-red-700',
+  SUBMITTED: 'bg-slate-100 text-slate-700',
+  FULFILLED: 'bg-teal-100 text-teal-700',
 };
 
 const URGENCY_COLORS: Record<string, string> = {
@@ -41,8 +20,12 @@ const URGENCY_COLORS: Record<string, string> = {
 };
 
 export function EmergencyConsole() {
-  const [emergencies] = useState(MOCK_EMERGENCIES);
-  const active = emergencies.filter(e => e.status !== 'DELIVERED');
+  const { data, isLoading, isError, refetch } = useGetPendingRequests({
+    query: { refetchInterval: 15_000 },
+  });
+
+  const emergencies: any[] = (data?.data as any)?.data ?? [];
+  const active = emergencies.filter(e => e.status !== 'DELIVERED' && e.status !== 'FULFILLED');
 
   return (
     <div className="space-y-6">
@@ -53,20 +36,36 @@ export function EmergencyConsole() {
           </div>
           <h1 className="text-2xl font-bold">Emergency Console</h1>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 rounded-full text-sm font-semibold">
-          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-          {active.length} Active
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-1 px-3 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
+          >
+            <RefreshCw className="w-4 h-4" /> Refresh
+          </button>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 rounded-full text-sm font-semibold">
+            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+            {active.length} Active
+          </div>
         </div>
       </div>
 
-      {emergencies.length === 0 ? (
+      {isLoading ? (
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-500">
+          Loading active emergencies…
+        </div>
+      ) : isError ? (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-6">
+          Failed to load emergency queue.
+        </div>
+      ) : emergencies.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
           <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
           <p className="text-slate-600 font-medium">No active emergencies!</p>
         </div>
       ) : (
         <div className="space-y-4">
-          {emergencies.map(em => (
+          {emergencies.map((em: any) => (
             <div
               key={em.id}
               className="bg-white rounded-xl border border-slate-200 p-6"
@@ -74,62 +73,42 @@ export function EmergencyConsole() {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-14 h-14 bg-red-600 text-white rounded-xl flex items-center justify-center text-xl font-bold">
-                    {em.bloodType.replace('-', '\n')}
+                    {em.bloodGroup?.replace('_POSITIVE', '+').replace('_NEGATIVE', '-').replace('_', '\n')}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <span
-                        className={`px-2 py-0.5 rounded text-xs font-bold ${URGENCY_COLORS[em.urgency]}`}
+                        className={`px-2 py-0.5 rounded text-xs font-bold ${URGENCY_COLORS[em.urgency] ?? 'bg-slate-300 text-slate-700'}`}
                       >
                         {em.urgency}
                       </span>
                       <span
-                        className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[em.status]}`}
+                        className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[em.status] ?? 'bg-slate-100 text-slate-700'}`}
                       >
-                        {em.status.replace('_', ' ')}
+                        {em.status?.replace('_', ' ')}
                       </span>
                     </div>
                     <div className="flex items-center gap-4 mt-1 text-sm text-slate-500">
-                      <span>{em.units} units needed</span>
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3" /> {em.center}
-                      </span>
+                      <span>{em.quantityUnits} units needed</span>
+                      {em.medicalCenter && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3" />
+                          {em.medicalCenterName ?? em.medicalCenter?.firstName ?? 'Medical center'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="flex items-center gap-1 text-sm text-slate-400">
                     <Clock className="w-3 h-3" />
-                    {new Date(em.createdAt).toLocaleTimeString()}
+                    {em.createdAt
+                      ? new Date(em.createdAt).toLocaleTimeString()
+                      : '—'}
                   </div>
                   <p className="text-xs text-slate-400">ID: #{em.id}</p>
                 </div>
               </div>
-
-              {em.status === 'MATCHING_DONOR' && (
-                <div className="grid grid-cols-2 gap-4 p-4 bg-orange-50 rounded-xl">
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1 text-2xl font-bold text-orange-700">
-                      <Users className="w-6 h-6" /> {em.donorsAlerted}
-                    </div>
-                    <p className="text-sm text-orange-600">Donors Alerted</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1 text-2xl font-bold text-green-700">
-                      <Phone className="w-6 h-6" /> {em.donorsResponded}
-                    </div>
-                    <p className="text-sm text-green-600">Responded</p>
-                  </div>
-                  <div className="col-span-2 flex gap-2">
-                    <button className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium text-sm">
-                      Send Reminder
-                    </button>
-                    <button className="flex-1 px-4 py-2 border border-orange-300 text-orange-700 rounded-lg hover:bg-orange-100 font-medium text-sm">
-                      View All Matches
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           ))}
         </div>

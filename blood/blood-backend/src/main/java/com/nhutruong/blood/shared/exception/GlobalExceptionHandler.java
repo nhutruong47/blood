@@ -3,16 +3,23 @@ package com.nhutruong.blood.shared.exception;
 import com.nhutruong.blood.shared.api.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -20,8 +27,11 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @Value("${spring.profiles.active:dev}")
-    private String activeProfile;
+    private final Environment environment;
+
+    public GlobalExceptionHandler(Environment environment) {
+        this.environment = environment;
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Map<String, Object>>> handleBusinessException(
@@ -49,6 +59,80 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .badRequest()
                 .body(ApiResponse.failure(ErrorCode.VALIDATION_ERROR.defaultMessage(), body));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleUnreadableBody(
+            HttpMessageNotReadableException exception,
+            HttpServletRequest request
+    ) {
+        ErrorCode code = ErrorCode.VALIDATION_ERROR;
+        log.warn("Malformed request body at {}: {}", request.getRequestURI(), exception.getMessage());
+        return ResponseEntity
+                .status(code.status())
+                .body(ApiResponse.failure("Malformed JSON request body", errorBody(code, request.getRequestURI())));
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleMissingParam(
+            MissingServletRequestParameterException exception,
+            HttpServletRequest request
+    ) {
+        ErrorCode code = ErrorCode.VALIDATION_ERROR;
+        return ResponseEntity
+                .status(code.status())
+                .body(ApiResponse.failure(
+                        "Missing required parameter: " + exception.getParameterName(),
+                        errorBody(code, request.getRequestURI())));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleTypeMismatch(
+            MethodArgumentTypeMismatchException exception,
+            HttpServletRequest request
+    ) {
+        ErrorCode code = ErrorCode.VALIDATION_ERROR;
+        return ResponseEntity
+                .status(code.status())
+                .body(ApiResponse.failure(
+                        "Invalid value for parameter: " + exception.getName(),
+                        errorBody(code, request.getRequestURI())));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException exception,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity
+                .status(ErrorCode.METHOD_NOT_ALLOWED.status())
+                .body(ApiResponse.failure(
+                        "HTTP method " + exception.getMethod() + " not supported on this endpoint",
+                        errorBody(ErrorCode.METHOD_NOT_ALLOWED, request.getRequestURI())));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleDataIntegrity(
+            DataIntegrityViolationException exception,
+            HttpServletRequest request
+    ) {
+        log.warn("Data integrity violation at {}: {}", request.getRequestURI(), exception.getMostSpecificCause().getMessage());
+        return ResponseEntity
+                .status(ErrorCode.CONFLICT.status())
+                .body(ApiResponse.failure("Data integrity violation", errorBody(ErrorCode.CONFLICT, request.getRequestURI())));
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleOptimisticLock(
+            OptimisticLockingFailureException exception,
+            HttpServletRequest request
+    ) {
+        log.warn("Optimistic lock failure at {}: {}", request.getRequestURI(), exception.getMessage());
+        return ResponseEntity
+                .status(ErrorCode.CONFLICT.status())
+                .body(ApiResponse.failure(
+                        "Record was modified concurrently. Please retry.",
+                        errorBody(ErrorCode.CONFLICT, request.getRequestURI())));
     }
 
     @ExceptionHandler(AuthenticationException.class)
@@ -87,7 +171,10 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         Map<String, Object> body = errorBody(ErrorCode.INTERNAL_ERROR, request.getRequestURI());
-        if (!activeProfile.contains("prod")) {
+        // Leak exception type only outside production profiles.
+        boolean isProd = Arrays.stream(environment.getActiveProfiles())
+                .anyMatch(p -> p.equalsIgnoreCase("prod") || p.equalsIgnoreCase("production"));
+        if (!isProd) {
             body.put("type", exception.getClass().getSimpleName());
         }
         log.error("Unexpected error at {}: {}", request.getRequestURI(), exception.getMessage(), exception);

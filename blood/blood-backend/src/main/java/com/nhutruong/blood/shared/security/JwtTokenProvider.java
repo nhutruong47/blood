@@ -4,13 +4,13 @@ import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.UUID;
 
@@ -20,11 +20,19 @@ public class JwtTokenProvider {
 
     private static final int MIN_SECRET_LENGTH = 32;
 
-    @Value("${app.jwt-secret}")
-    private String jwtSecret;
+    private final String jwtSecret;
+    private final long jwtExpirationDate;
+    private final Environment environment;
 
-    @Value("${app.jwt-expiration-milliseconds:86400000}")
-    private long jwtExpirationDate;
+    public JwtTokenProvider(
+            @Value("${app.jwt-secret:}") String jwtSecret,
+            @Value("${app.jwt-expiration-milliseconds:86400000}") long jwtExpirationDate,
+            Environment environment
+    ) {
+        this.jwtSecret = jwtSecret;
+        this.jwtExpirationDate = jwtExpirationDate;
+        this.environment = environment;
+    }
 
     public String generateToken(Authentication authentication) {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
@@ -51,23 +59,31 @@ public class JwtTokenProvider {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
+    /**
+     * Refuses to start when the JWT secret is missing or shorter than the minimum.
+     * <p>
+     * Throws IllegalStateException unconditionally on misconfiguration so the
+     * application fails fast at startup rather than silently accepting weak
+     * secrets in any environment.
+     */
     private String ensureSecureSecret() {
-        if (jwtSecret == null || jwtSecret.isEmpty()) {
+        if (jwtSecret == null || jwtSecret.isBlank()) {
             throw new IllegalStateException(
                     "CRITICAL: app.jwt-secret is not configured. "
-                            + "Set a secure secret (min 256 bits / 32 chars) in application-prod.properties. "
-                            + "Generated secret is FORBIDDEN in production."
+                            + "Set JWT_SECRET (minimum 32 chars / 256-bit key) in the environment "
+                            + "or application-prod.properties. Refusing to start."
             );
         }
         if (jwtSecret.length() < MIN_SECRET_LENGTH) {
-            String message = "JWT secret too short (" + jwtSecret.length()
-                    + " chars). Minimum 32 chars required.";
-            if (Arrays.stream(new String[]{""})
-                    .anyMatch(profile -> System.getProperty("spring.profiles.active", "").contains("prod"))) {
-                throw new IllegalStateException(message);
-            }
-            log.warn("WARN: {}", message);
+            String message = "CRITICAL: JWT secret is too short ("
+                    + jwtSecret.length() + " chars). Minimum required: "
+                    + MIN_SECRET_LENGTH + " chars (256-bit key for HS256).";
+            log.error(message);
+            throw new IllegalStateException(message);
         }
+        log.info("JWT secret validation passed ({} chars, active profiles={}).",
+                jwtSecret.length(),
+                String.join(",", environment.getActiveProfiles()));
         return jwtSecret;
     }
 

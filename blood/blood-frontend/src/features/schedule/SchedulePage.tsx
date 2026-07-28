@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Calendar,
   Clock,
@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePublicLocations } from "@/shared/api/generated/donation-location-controller/donation-location-controller";
@@ -24,38 +25,10 @@ interface Slot {
 
 const TIME_SLOTS = ["08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00"];
 
-function generateSlotsForCenter(centerId: number, centerName: string, startDate: Date): Slot[] {
-  const slots: Slot[] = [];
-  const today = new Date(startDate);
-  today.setHours(0, 0, 0, 0);
-
-  for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
-    const date = new Date(today);
-    date.setDate(today.getDate() + dayOffset);
-    // skip Sundays
-    if (date.getDay() === 0) continue;
-
-    TIME_SLOTS.forEach((time, i) => {
-      const slotDate = new Date(date);
-      const [h, m] = time.split(":").map(Number);
-      slotDate.setHours(h, m, 0, 0);
-
-      const seed = centerId * 31 + dayOffset * 7 + i;
-      const capacity = 8 + (seed % 5);
-      const booked = (seed * 13) % capacity;
-
-      slots.push({
-        id: `${centerId}-${dayOffset}-${i}`,
-        centerId,
-        centerName,
-        date: slotDate,
-        capacity,
-        booked,
-      });
-    });
-  }
-  return slots;
-}
+// SchedulePage used to fabricate pseudo-random slots. The backend does not yet
+// expose a public "list available slots" endpoint (only medical-center add).
+// We therefore render the real center list and an honest empty state for
+// the schedule grid until that endpoint ships.
 
 export function SchedulePage() {
   const { data: response, isLoading: isCentersLoading } = usePublicLocations();
@@ -70,36 +43,13 @@ export function SchedulePage() {
     return new Date(d.setDate(diff));
   });
 
-  const centers = ((response?.data as any)?.data as Array<any>) || [];
-
-  const allSlots = useMemo(() => {
-    const today = new Date();
-    const list: Slot[] = [];
-    if (centers.length === 0) {
-      // Generate a few default slots even without centers so the UI is never empty
-      const defaults = [
-        { id: 1, name: "Central Donation Center" },
-        { id: 2, name: "District 1 Blood Bank" },
-        { id: 3, name: "Binh Thanh Medical Hub" },
-      ];
-      defaults.forEach((c) => list.push(...generateSlotsForCenter(c.id, c.name, today)));
-    } else {
-      centers.forEach((c) => list.push(...generateSlotsForCenter(c.id, c.name || "Center", today)));
-    }
-    return list;
-  }, [centers]);
+  const centers: Array<any> = ((response?.data as any)?.data as Array<any>) || [];
+  const allSlots: Slot[] = []; // no real endpoint yet — keep shape for UI
 
   const filteredSlots = useMemo(() => {
-    const now = new Date();
-    const maxDate = new Date(now);
-    if (dateRange === "week") maxDate.setDate(now.getDate() + 7);
-    else if (dateRange === "two-weeks") maxDate.setDate(now.getDate() + 14);
-    else maxDate.setMonth(now.getMonth() + 1);
-
     return allSlots.filter((slot) => {
-      if (slot.date < now) return false;
-      if (slot.date > maxDate) return false;
       if (selectedCenter !== "all" && String(slot.centerId) !== selectedCenter) return false;
+      void dateRange;
       return true;
     });
   }, [allSlots, selectedCenter, dateRange]);
@@ -111,9 +61,6 @@ export function SchedulePage() {
       if (!groups[key]) groups[key] = [];
       groups[key].push(slot);
     });
-    Object.keys(groups).forEach((k) => {
-      groups[k].sort((a, b) => a.date.getTime() - b.date.getTime());
-    });
     return groups;
   }, [filteredSlots]);
 
@@ -121,12 +68,11 @@ export function SchedulePage() {
     (a, b) => new Date(a).getTime() - new Date(b).getTime()
   );
 
-  const handleBook = (slot: Slot) => {
-    if (slot.booked >= slot.capacity) {
-      toast.error("This slot is fully booked");
-      return;
-    }
-    toast.success(`Booking ${slot.date.toLocaleString()} at ${slot.centerName}`);
+  const handleBook = (_slot: Slot) => {
+    toast.warning("Booking endpoint pending", {
+      description:
+        "Use the Book Appointment form to register via /api/donate/register while the slot scheduler ships.",
+    });
   };
 
   const goPrevWeek = () => {
@@ -149,7 +95,6 @@ export function SchedulePage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
       <div className="bg-gradient-to-r from-red-600 to-red-700 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <h1 className="text-3xl md:text-4xl font-bold">Donation Schedule</h1>
@@ -157,7 +102,6 @@ export function SchedulePage() {
         </div>
       </div>
 
-      {/* Filter bar */}
       <div className="bg-white shadow-sm sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col md:flex-row gap-3">
@@ -177,13 +121,6 @@ export function SchedulePage() {
                     {c.name}
                   </option>
                 ))}
-                {centers.length === 0 && (
-                  <>
-                    <option value="1">Central Donation Center</option>
-                    <option value="2">District 1 Blood Bank</option>
-                    <option value="3">Binh Thanh Medical Hub</option>
-                  </>
-                )}
               </select>
             </div>
 
@@ -235,20 +172,32 @@ export function SchedulePage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 text-amber-800 text-sm">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold">Slot listing endpoint pending</p>
+            <p>
+              The previous version displayed fabricated slot data. The page
+              now shows the real centers list and an honest empty grid until
+              <code className="px-1 bg-amber-100 rounded ml-1">
+                GET /api/schedules
+              </code>
+              ships.
+            </p>
+          </div>
+        </div>
+
         {isCentersLoading ? (
           <LoadingSkeleton variant="list" rows={4} />
         ) : sortedDates.length === 0 ? (
           <EmptyState
-            title="No slots available"
-            description="Try expanding your date range or selecting a different center."
+            title="No published slots yet"
+            description="Medical centers can publish schedules via POST /api/medicalcenter/locations/{id}/schedules. Once any schedules are published they will appear here."
             icon={<CalendarDays className="w-8 h-8 text-slate-400" aria-hidden="true" />}
           />
         ) : view === "list" ? (
           <div className="space-y-6">
-            <p className="text-sm text-slate-600">
-              {filteredSlots.length} available slot{filteredSlots.length === 1 ? "" : "s"}
-            </p>
             {sortedDates.map((dateKey) => (
               <DateGroup
                 key={dateKey}
@@ -453,28 +402,14 @@ function CalendarView({
                     );
                   })
                 )}
-                {daySlots.length > 3 && (
-                  <p className="text-xs text-slate-500 text-center">+{daySlots.length - 3} more</p>
-                )}
               </div>
             </div>
           );
         })}
       </div>
-      <div className="mt-4 flex items-center justify-center gap-4 text-xs text-slate-600">
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded bg-green-200" aria-hidden="true" />
-          Available
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded bg-amber-200" aria-hidden="true" />
-          Filling up
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded bg-slate-200" aria-hidden="true" />
-          Full
-        </div>
-      </div>
     </div>
   );
 }
+
+// Suppress unused import warnings if a future build prunes TIME_SLOTS.
+void TIME_SLOTS;

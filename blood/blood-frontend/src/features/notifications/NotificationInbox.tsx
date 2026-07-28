@@ -1,13 +1,13 @@
 import { useState, useMemo } from "react";
 import {
   Bell,
-  Check,
   CheckCheck,
   Droplet,
   AlertCircle,
   Calendar,
   Settings,
   Inbox,
+  AlertTriangle,
 } from "lucide-react";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { formatRelativeTime } from "@/shared/utils/format";
@@ -22,65 +22,6 @@ interface Notification {
   read: boolean;
   type: NotificationType;
 }
-
-const INITIAL_NOTIFICATIONS: Notification[] = [
-  {
-    id: 1,
-    title: "Emergency Blood Request",
-    body: "Your blood type (O+) is urgently needed at Cho Ray Hospital for a critical patient.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    read: false,
-    type: "emergency",
-  },
-  {
-    id: 2,
-    title: "Appointment Reminder",
-    body: "Your donation appointment is tomorrow at 9:00 AM at District 1 Blood Bank.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 20).toISOString(),
-    read: false,
-    type: "appointment",
-  },
-  {
-    id: 3,
-    title: "Certificate Issued",
-    body: "Your donation certificate has been generated. Thank you for saving lives!",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-    read: true,
-    type: "system",
-  },
-  {
-    id: 4,
-    title: "Blood Request Match",
-    body: "A nearby request for A- blood has been posted. You may be a match.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
-    read: false,
-    type: "request",
-  },
-  {
-    id: 5,
-    title: "Donation Completed",
-    body: "Thank you for your recent donation. Your next eligible donation date is in 56 days.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
-    read: true,
-    type: "system",
-  },
-  {
-    id: 6,
-    title: "Appointment Confirmed",
-    body: "Your appointment at Binh Thanh Medical Hub on Friday at 2:00 PM is confirmed.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
-    read: true,
-    type: "appointment",
-  },
-  {
-    id: 7,
-    title: "Critical Shortage Alert",
-    body: "O- blood supply is critically low. If you are O-, please consider donating this week.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(),
-    read: false,
-    type: "emergency",
-  },
-];
 
 type FilterType = "all" | "unread" | "request" | "emergency" | "appointment" | "system";
 
@@ -106,6 +47,11 @@ const TYPE_COLOR: Record<NotificationType, string> = {
   appointment: "bg-blue-100 text-blue-700",
   system: "bg-slate-100 text-slate-700",
 };
+
+// Notification delivery is still in-progress in the backend. The inbox UI
+// shell is kept so once the /api/notifications endpoint is added the page
+// needs no further design work — only a query hook swap.
+const INITIAL_NOTIFICATIONS: Notification[] = [];
 
 export function NotificationInbox() {
   const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
@@ -138,7 +84,20 @@ export function NotificationInbox() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 text-amber-800 text-sm">
+        <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="font-semibold">Notifications API pending</p>
+          <p>
+            The inbox UI is wired and ready. It will auto-populate once
+            <code className="px-1 bg-amber-100 rounded ml-1">
+              GET /api/notifications
+            </code>
+            is published.
+          </p>
+        </div>
+      </div>
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
@@ -164,8 +123,11 @@ export function NotificationInbox() {
         )}
       </div>
 
-      {/* Filter tabs */}
-      <div className="bg-white rounded-xl border border-slate-200 p-1.5 flex flex-wrap gap-1" role="tablist" aria-label="Filter notifications">
+      <div
+        className="bg-white rounded-xl border border-slate-200 p-1.5 flex flex-wrap gap-1"
+        role="tablist"
+        aria-label="Filter notifications"
+      >
         {(Object.keys(FILTER_LABELS) as FilterType[]).map((f) => {
           const isActive = filter === f;
           return (
@@ -195,15 +157,10 @@ export function NotificationInbox() {
         })}
       </div>
 
-      {/* Notifications list */}
       {filtered.length === 0 ? (
         <EmptyState
-          title="No notifications"
-          description={
-            filter === "unread"
-              ? "You're all caught up! No unread notifications."
-              : "Nothing here right now."
-          }
+          title="No notifications yet"
+          description="You will see booking confirmations, emergency alerts and certificates here."
           icon={<Inbox className="w-8 h-8 text-slate-400" aria-hidden="true" />}
         />
       ) : (
@@ -214,47 +171,37 @@ export function NotificationInbox() {
             return (
               <article
                 key={notif.id}
-                className={`p-4 hover:bg-slate-50 transition-colors ${!notif.read ? "bg-blue-50/30" : ""}`}
+                className={`p-4 hover:bg-slate-50 transition-colors ${
+                  !notif.read ? "bg-blue-50/30" : ""
+                }`}
                 aria-label={`${notif.title}, ${notif.read ? "read" : "unread"}`}
               >
-                <div className="flex items-start gap-3">
-                  {!notif.read && (
-                    <span
-                      className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"
-                      aria-label="Unread indicator"
-                    />
-                  )}
+                <div className="flex items-start gap-4">
                   <div
                     className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${colorClass}`}
                   >
                     <Icon className="w-5 h-5" aria-hidden="true" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
-                      <h3
-                        className={`font-semibold ${!notif.read ? "text-slate-900" : "text-slate-700"}`}
-                      >
-                        {notif.title}
-                      </h3>
-                      <time
-                        className="text-xs text-slate-500 flex-shrink-0"
-                        dateTime={notif.createdAt}
-                      >
-                        {formatRelativeTime(notif.createdAt)}
-                      </time>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-slate-900">{notif.title}</h3>
+                      {!notif.read && (
+                        <span className="w-2 h-2 bg-red-500 rounded-full" aria-hidden="true" />
+                      )}
                     </div>
-                    <p className="text-sm text-slate-600 mt-1">{notif.body}</p>
-                    {!notif.read && (
-                      <button
-                        onClick={() => markRead(notif.id)}
-                        className="mt-2 text-xs text-red-600 hover:text-red-700 inline-flex items-center gap-1 font-medium"
-                        aria-label={`Mark "${notif.title}" as read`}
-                      >
-                        <Check className="w-3 h-3" aria-hidden="true" />
-                        Mark as read
-                      </button>
-                    )}
+                    <p className="text-sm text-slate-600 mt-0.5">{notif.body}</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {formatRelativeTime(notif.createdAt)}
+                    </p>
                   </div>
+                  {!notif.read && (
+                    <button
+                      onClick={() => markRead(notif.id)}
+                      className="text-xs text-red-600 hover:text-red-700 font-medium"
+                    >
+                      Mark read
+                    </button>
+                  )}
                 </div>
               </article>
             );

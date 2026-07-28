@@ -9,6 +9,7 @@ public enum ErrorCode {
     NOT_FOUND(HttpStatus.NOT_FOUND, "Resource not found"),
     CONFLICT(HttpStatus.CONFLICT, "Resource conflict"),
     BUSINESS_RULE_VIOLATION(HttpStatus.UNPROCESSABLE_ENTITY, "Business rule violation"),
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error");
 
     private final HttpStatus status;

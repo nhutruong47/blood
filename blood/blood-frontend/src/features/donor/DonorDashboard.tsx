@@ -8,7 +8,7 @@ export function DonorDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [emergencyOptIn, setEmergencyOptIn] = useState(true);
-  const bloodType = user?.bloodGroup?.replace('_', ' ') || '--';
+  const bloodType = user?.bloodGroup?.replace('_POSITIVE', '+').replace('_NEGATIVE', '-') || '—';
 
   const handleDownloadCertificate = () => {
     toast.info('Certificate download will be available soon.');
@@ -37,22 +37,22 @@ export function DonorDashboard() {
         <StatCard
           icon={<Droplet className="w-6 h-6" />}
           label="Total Donations"
-          value="--"
-          subtext="Donations count"
+          value="—"
+          subtext="Donation history endpoint pending"
           color="red"
         />
         <StatCard
           icon={<Award className="w-6 h-6" />}
           label="Lives Saved"
-          value="--"
-          subtext="Impact"
+          value="—"
+          subtext="Impact endpoint pending"
           color="yellow"
         />
         <StatCard
           icon={<Calendar className="w-6 h-6" />}
           label="Next Eligible"
-          value="--"
-          subtext="Date"
+          value="—"
+          subtext="Schedule endpoint pending"
           color="blue"
         />
       </div>
@@ -98,6 +98,8 @@ export function DonorDashboard() {
           </div>
           <button
             onClick={() => setEmergencyOptIn(!emergencyOptIn)}
+            role="switch"
+            aria-checked={emergencyOptIn}
             className={`w-12 h-7 rounded-full transition-colors ${
               emergencyOptIn ? 'bg-red-600' : 'bg-slate-300'
             }`}
@@ -109,6 +111,9 @@ export function DonorDashboard() {
             />
           </button>
         </div>
+        <p className="text-xs text-slate-400 mt-2">
+          Preferences are stored locally. Backend sync endpoint pending.
+        </p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-6">
