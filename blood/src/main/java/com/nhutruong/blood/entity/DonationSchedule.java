@@ -15,6 +15,9 @@ public class DonationSchedule {
     private Long id;
 
     private LocalDateTime donationTime;
+    private LocalDateTime startTime;
+    private LocalDateTime endTime;
+    private Integer capacity;
 
     @ManyToOne
     private DonationLocation location;

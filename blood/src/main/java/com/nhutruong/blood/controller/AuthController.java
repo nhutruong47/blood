@@ -1,67 +1,81 @@
 package com.nhutruong.blood.controller;
 
-import com.nhutruong.blood.entity.Role;
+import com.nhutruong.blood.dto.ApiResponse;
+import com.nhutruong.blood.dto.LoginRequest;
+import com.nhutruong.blood.dto.LoginResponse;
+import com.nhutruong.blood.dto.MessageResponse;
+import com.nhutruong.blood.dto.RegisterRequest;
+import com.nhutruong.blood.dto.UserResponse;
 import com.nhutruong.blood.entity.User;
+import com.nhutruong.blood.exception.UnauthorizedException;
+import com.nhutruong.blood.security.SessionAuthenticationFilter;
 import com.nhutruong.blood.service.imple.AuthServiceImple;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 @RestController
 public class AuthController {
 
-    @Autowired
-    private AuthServiceImple authService;
+    private final AuthServiceImple authService;
+
+    public AuthController(AuthServiceImple authService) {
+        this.authService = authService;
+    }
 
     @PostMapping("/api/register")
-    public String register(@RequestBody User user) {
-        user.setRole(Role.DONOR); // Gán role mặc định là DONOR
-        authService.register(user);
-        return "Đăng ký thành công với vai trò hiến máu (donor)";
+    public ResponseEntity<ApiResponse<UserResponse>> register(@Valid @RequestBody RegisterRequest request) {
+        User user = authService.register(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok("Registration successful", UserResponse.from(user)));
     }
 
     @PostMapping("/api/login")
-    public Map<String, Object> login(@RequestBody User user, HttpSession session) {
-        Map<String, Object> response = new HashMap<>();
+    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest servletRequest) {
+        User loginUser = authService.login(request.email(), request.password());
+        HttpSession session = servletRequest.getSession(true);
+        servletRequest.changeSessionId();
+        session.setAttribute(SessionAuthenticationFilter.CURRENT_USER, loginUser);
 
-        try {
-            User loginUser = authService.login(user.getEmail(), user.getPassword());
-            session.setAttribute("currentUser", loginUser);
+        var authority = new SimpleGrantedAuthority("ROLE_" + loginUser.getRole().name());
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(loginUser, null, List.of(authority))
+        );
 
-            response.put("message", "Đăng nhập thành công");
-
-            String redirectUrl = switch (loginUser.getRole().name()) {
-                case "ADMIN" -> "/dashboardAdmin";
-                case "STAFF" -> "/dashboardStaff";
-                case "MEDICALCENTER" -> "/dashboardMedicalcenter";
-                case "DONOR" -> "/home";
-                default -> "/unknown-role";
-            };
-            response.put("redirect", redirectUrl);
-        } catch (Exception e) {
-            response.put("message", e.getMessage()); // chi tiết lỗi (email không tồn tại hoặc sai password)
-        }
-
-        return response;
+        String redirectUrl = switch (loginUser.getRole().name()) {
+            case "ADMIN" -> "/dashboardAdmin";
+            case "STAFF" -> "/dashboardStaff";
+            case "MEDICALCENTER" -> "/dashboardMedicalcenter";
+            case "DONOR" -> "/home";
+            default -> "/unknown-role";
+        };
+        return ApiResponse.ok("Login successful", new LoginResponse(redirectUrl, UserResponse.from(loginUser)));
     }
 
     @GetMapping("/api/me")
-    public Object me(HttpSession session) {
-        Object user = session.getAttribute("currentUser");
-        if (user == null) {
-            return "Chưa đăng nhập";
+    public ApiResponse<UserResponse> me(HttpSession session) {
+        Object user = session.getAttribute(SessionAuthenticationFilter.CURRENT_USER);
+        if (!(user instanceof User currentUser)) {
+            throw new UnauthorizedException("Authentication is required");
         }
-        return user;
+        return ApiResponse.ok("Current user", UserResponse.from(currentUser));
     }
 
     @PostMapping("/api/logout")
-    public String logout(HttpSession session) {
+    public ApiResponse<MessageResponse> logout(HttpSession session) {
         session.invalidate();
-        return "Đã đăng xuất";
+        SecurityContextHolder.clearContext();
+        return ApiResponse.ok("Logged out", new MessageResponse("Logged out"));
     }
-
-
 }
