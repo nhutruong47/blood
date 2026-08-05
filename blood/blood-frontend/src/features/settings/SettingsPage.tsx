@@ -21,6 +21,9 @@ import { useMe } from "@/shared/api/generated/auth-controller/auth-controller";
 import {
   changePassword,
   updateMe,
+  getNotificationPreferences,
+  updateNotificationPreferences,
+  type NotificationPrefs,
 } from "@/shared/api/admin-api";
 
 type TabKey = "profile" | "notifications" | "security";
@@ -58,36 +61,7 @@ const passwordSchema = z
 
 type PasswordFormValues = z.infer<typeof passwordSchema>;
 
-interface NotificationPrefs {
-  email: boolean;
-  sms: boolean;
-  push: boolean;
-  emergencyAlerts: boolean;
-  donationReminders: boolean;
-  newsletter: boolean;
-}
 
-const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
-  email: true,
-  sms: true,
-  push: true,
-  emergencyAlerts: true,
-  donationReminders: true,
-  newsletter: false,
-};
-
-const NOTIFICATION_STORAGE_KEY = "bc.notification-prefs";
-
-function loadStoredPrefs(): NotificationPrefs {
-  if (typeof window === "undefined") return DEFAULT_NOTIFICATION_PREFS;
-  try {
-    const raw = window.localStorage.getItem(NOTIFICATION_STORAGE_KEY);
-    if (!raw) return DEFAULT_NOTIFICATION_PREFS;
-    return { ...DEFAULT_NOTIFICATION_PREFS, ...JSON.parse(raw) };
-  } catch {
-    return DEFAULT_NOTIFICATION_PREFS;
-  }
-}
 
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("profile");
@@ -253,16 +227,26 @@ function ProfileTab() {
 }
 
 function NotificationsTab() {
-  const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);
-  const [savedPrefs, setSavedPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);
+  const [prefs, setPrefs] = useState<NotificationPrefs>({
+    email: true, sms: true, push: true, emergencyAlerts: true, donationReminders: true, newsletter: false
+  });
+  const [savedPrefs, setSavedPrefs] = useState<NotificationPrefs>({
+    email: true, sms: true, push: true, emergencyAlerts: true, donationReminders: true, newsletter: false
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const stored = loadStoredPrefs();
-    setPrefs(stored);
-    setSavedPrefs(stored);
-    setHydrated(true);
+    let cancelled = false;
+    getNotificationPreferences().then(data => {
+      if (!cancelled) {
+        setPrefs(data);
+        setSavedPrefs(data);
+        setHydrated(true);
+      }
+    }).catch(err => console.error(err));
+    
+    return () => { cancelled = true; };
   }, []);
 
   const dirty = JSON.stringify(prefs) !== JSON.stringify(savedPrefs);
@@ -275,10 +259,12 @@ function NotificationsTab() {
     event.preventDefault();
     setIsSaving(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 350));
-      window.localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(prefs));
-      setSavedPrefs(prefs);
+      const updated = await updateNotificationPreferences(prefs);
+      setPrefs(updated);
+      setSavedPrefs(updated);
       toast.success("Notification preferences updated");
+    } catch (err) {
+      toast.error("Failed to update preferences");
     } finally {
       setIsSaving(false);
     }

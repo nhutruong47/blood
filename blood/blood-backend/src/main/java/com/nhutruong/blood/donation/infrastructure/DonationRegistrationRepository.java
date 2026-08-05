@@ -16,6 +16,14 @@ public interface DonationRegistrationRepository extends JpaRepository<DonationRe
             Collection<com.nhutruong.blood.donation.domain.DonationRegistrationStatus> statuses
     );
 
+    long countByDonorIdAndStatus(Long donorId, com.nhutruong.blood.donation.domain.DonationRegistrationStatus status);
+
+    com.nhutruong.blood.donation.domain.DonationRegistration findTopByDonorIdAndStatusOrderByDonationDateDesc(
+            Long donorId, com.nhutruong.blood.donation.domain.DonationRegistrationStatus status
+    );
+
+    List<com.nhutruong.blood.donation.domain.DonationRegistration> findByDonorIdOrderByDonationDateDesc(Long donorId);
+
     /**
      * Group donations by (year, month) for the analytics dashboard.
      * The result is a small list (≤ 12 rows) instead of streaming the whole

@@ -13,11 +13,13 @@ import { DonationCentersPage } from "@/features/centers/DonationCentersPage";
 import { EligibilityCheckPage } from "@/features/eligibility/EligibilityCheckPage";
 import { BloodCompatibilityPage } from "@/features/compatibility/BloodCompatibilityPage";
 import { EmergencyRequestPage } from "@/features/emergency/EmergencyRequestPage";
+import { SchedulePage } from "@/features/schedule/SchedulePage";
 
 // Features - Auth
 import { LoginPage } from "@/features/auth/LoginPage";
 import { RegisterPage } from "@/features/auth/RegisterPage";
 import { ForgotPasswordPage } from "@/features/auth/ForgotPasswordPage";
+import { ResetPasswordPage } from "@/features/auth/ResetPasswordPage";
 import { UnauthorizedPage } from "@/features/auth/UnauthorizedPage";
 
 // Features - Settings / Profile (authenticated, any role)
@@ -37,11 +39,13 @@ import { AuditLogViewer } from "@/features/admin/AuditLogViewer";
 import { HospitalDashboard } from "@/features/hospital/HospitalDashboard";
 import { HospitalRequestForm } from "@/features/hospital/HospitalRequestForm";
 import { HospitalInventoryView } from "@/features/hospital/HospitalInventoryView";
+import { ShipmentTrackingPage } from "@/features/shipment/ShipmentTrackingPage";
 
 // Features - Medical Center Portal
 import { MedicalCenterDashboard } from "@/features/medicalcenter/MedicalCenterDashboard";
 import { DailyOperationsBoard } from "@/features/medicalcenter/DailyOperationsBoard";
 import { LabTestEntryForm } from "@/features/medicalcenter/LabTestEntryForm";
+import { DonorMatchingPage } from "@/features/matching/DonorMatchingPage";
 
 // Features - Donor Portal
 import { DonorDashboard } from "@/features/donor/DonorDashboard";
@@ -78,6 +82,10 @@ export const router = createBrowserRouter([
       {
         path: "forgot-password",
         element: <ForgotPasswordPage />,
+      },
+      {
+        path: "reset-password",
+        element: <ResetPasswordPage />,
       },
     ],
   },
@@ -132,6 +140,10 @@ export const router = createBrowserRouter([
   {
     path: "unauthorized",
     element: <UnauthorizedPage />,
+  },
+  {
+    path: "schedule",
+    element: <SchedulePage />,
   },
 
   // Admin Portal Routes
@@ -199,6 +211,10 @@ export const router = createBrowserRouter([
         path: "emergency",
         element: <EmergencyConsole />,
       },
+      {
+        path: "shipments",
+        element: <ShipmentTrackingPage />,
+      },
     ],
   },
 
@@ -239,6 +255,10 @@ export const router = createBrowserRouter([
       {
         path: "emergency",
         element: <EmergencyConsole />,
+      },
+      {
+        path: "matching",
+        element: <DonorMatchingPage />,
       },
     ],
   },

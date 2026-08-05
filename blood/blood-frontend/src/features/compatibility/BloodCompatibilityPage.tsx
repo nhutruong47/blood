@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAll1 } from "@/shared/api/generated/blood-compatibility-controller/blood-compatibility-controller";
 import {
   Droplet,
@@ -9,6 +9,7 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -120,6 +121,7 @@ const COMPATIBILITY_MATRIX: Record<BloodGroup, BloodGroup[]> = {
 };
 
 export function BloodCompatibilityPage() {
+  const navigate = useNavigate();
   const { data: response, isLoading, isError } = useAll1();
 
   if (isError) {
@@ -176,8 +178,15 @@ export function BloodCompatibilityPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white relative">
+        <button 
+          onClick={() => navigate(-1)}
+          className="absolute top-4 left-4 sm:left-6 lg:left-8 flex items-center gap-2 text-blue-100 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span className="text-sm font-medium">Back</span>
+        </button>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 mt-4">
           <div className="max-w-3xl">
             <h1 className="text-4xl font-bold">Blood Type Compatibility</h1>
             <p className="mt-4 text-xl text-blue-100">

@@ -87,4 +87,52 @@ public class DonationService {
         }
         return schedule;
     }
+
+    @Transactional(readOnly = true)
+    public com.nhutruong.blood.donation.application.dto.DonorSummaryResponse getDonorSummary(User donor) {
+        long totalDonations = donationRegistrationRepository.countByDonorIdAndStatus(
+                donor.getId(), com.nhutruong.blood.donation.domain.DonationRegistrationStatus.COMPLETED);
+        
+        long livesSaved = totalDonations * 3;
+        
+        var allRegistrations = donationRegistrationRepository.findByDonorIdOrderByDonationDateDesc(donor.getId());
+        
+        java.time.LocalDate lastDonationDate = null;
+        java.time.LocalDate nextEligibleDate = java.time.LocalDate.now();
+
+        if (!allRegistrations.isEmpty()) {
+            for (var reg : allRegistrations) {
+                if (reg.getStatus() == com.nhutruong.blood.donation.domain.DonationRegistrationStatus.COMPLETED) {
+                    if (lastDonationDate == null || reg.getDonationDate().isAfter(lastDonationDate)) {
+                        lastDonationDate = reg.getDonationDate();
+                    }
+                }
+            }
+        }
+        
+        if (lastDonationDate != null) {
+            nextEligibleDate = lastDonationDate.plusDays(90);
+        }
+
+        java.util.List<com.nhutruong.blood.donation.application.dto.ActivityEntryResponse> recentActivities = allRegistrations.stream()
+                .limit(5)
+                .map(reg -> {
+                    String title = "Donation at " + reg.getMedicalCenterName();
+                    String type = "donation";
+                    if (reg.getSchedule() != null && reg.getStatus() == com.nhutruong.blood.donation.domain.DonationRegistrationStatus.SUBMITTED) {
+                        type = "appointment";
+                        title = "Scheduled appointment at " + reg.getMedicalCenterName();
+                    }
+                    return new com.nhutruong.blood.donation.application.dto.ActivityEntryResponse(
+                            String.valueOf(reg.getId()),
+                            type,
+                            title,
+                            reg.getDonationDate(),
+                            reg.getStatus().name()
+                    );
+                }).toList();
+
+        return new com.nhutruong.blood.donation.application.dto.DonorSummaryResponse(
+                totalDonations, livesSaved, nextEligibleDate, lastDonationDate, recentActivities);
+    }
 }

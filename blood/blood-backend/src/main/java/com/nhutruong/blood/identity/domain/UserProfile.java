@@ -46,7 +46,22 @@ public class UserProfile {
     private Double longitude;
 
     @Column(nullable = false)
-    private boolean emergencyAlertOptIn = false;
+    private boolean emergencyAlertOptIn = true;
+
+    @Column(nullable = false)
+    private boolean emailNotifications = true;
+
+    @Column(nullable = false)
+    private boolean smsNotifications = true;
+
+    @Column(nullable = false)
+    private boolean pushNotifications = true;
+
+    @Column(nullable = false)
+    private boolean donationReminders = true;
+
+    @Column(nullable = false)
+    private boolean newsletter = false;
 
     private LocalDate lastDonationDate;
     private LocalDate nextEligibleDate;
@@ -90,6 +105,26 @@ public class UserProfile {
 
     public boolean isEmergencyAlertOptIn() {
         return emergencyAlertOptIn;
+    }
+
+    public boolean isEmailNotifications() {
+        return emailNotifications;
+    }
+
+    public boolean isSmsNotifications() {
+        return smsNotifications;
+    }
+
+    public boolean isPushNotifications() {
+        return pushNotifications;
+    }
+
+    public boolean isDonationReminders() {
+        return donationReminders;
+    }
+
+    public boolean isNewsletter() {
+        return newsletter;
     }
 
     public LocalDate getLastDonationDate() {
@@ -138,6 +173,26 @@ public class UserProfile {
 
     public void setEmergencyAlertOptIn(boolean emergencyAlertOptIn) {
         this.emergencyAlertOptIn = emergencyAlertOptIn;
+    }
+
+    public void setEmailNotifications(boolean emailNotifications) {
+        this.emailNotifications = emailNotifications;
+    }
+
+    public void setSmsNotifications(boolean smsNotifications) {
+        this.smsNotifications = smsNotifications;
+    }
+
+    public void setPushNotifications(boolean pushNotifications) {
+        this.pushNotifications = pushNotifications;
+    }
+
+    public void setDonationReminders(boolean donationReminders) {
+        this.donationReminders = donationReminders;
+    }
+
+    public void setNewsletter(boolean newsletter) {
+        this.newsletter = newsletter;
     }
 
     public void setLastDonationDate(LocalDate lastDonationDate) {

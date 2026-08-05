@@ -115,6 +115,11 @@ public class ShipmentService {
     }
 
     @Transactional(readOnly = true)
+    public List<Shipment> getAll() {
+        return shipmentRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
     public List<Shipment> getByRequest(Long requestId) {
         return shipmentRepository.findWithRelationsByBloodRequestId(requestId);
     }

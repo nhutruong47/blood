@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
   Phone,
@@ -9,7 +9,9 @@ import {
   User,
   Clock,
   Loader2,
+  ArrowLeft,
 } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { useCreate1 } from "@/shared/api/generated/emergency-request-controller/emergency-request-controller";
 import type { CreateEmergencyRequestBloodGroup } from "@/shared/api/generated/model/createEmergencyRequestBloodGroup";
@@ -41,6 +43,7 @@ const COMPONENTS: Array<{ value: CreateEmergencyRequestComponentType; label: str
 ];
 
 export function EmergencyRequestPage() {
+  const navigate = useNavigate();
   const [submitted, setSubmitted] = useState(false);
   const [requestType, setRequestType] = useState<"hospital" | "public">("hospital");
   const [formData, setFormData] = useState({
@@ -165,8 +168,15 @@ export function EmergencyRequestPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-red-600 to-red-700 text-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="bg-gradient-to-r from-red-600 to-red-700 text-white relative">
+        <button 
+          onClick={() => navigate(-1)}
+          className="absolute top-4 left-4 sm:left-6 lg:left-8 flex items-center gap-2 text-red-100 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span className="text-sm font-medium">Back</span>
+        </button>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
               <AlertCircle className="w-7 h-7" />

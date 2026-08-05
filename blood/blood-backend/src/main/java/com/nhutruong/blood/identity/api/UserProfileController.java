@@ -2,6 +2,8 @@ package com.nhutruong.blood.identity.api;
 
 import com.nhutruong.blood.identity.application.UserProfileService;
 import com.nhutruong.blood.identity.application.dto.UpdateUserProfileRequest;
+import com.nhutruong.blood.identity.application.dto.UpdateNotificationPreferencesRequest;
+import com.nhutruong.blood.identity.application.dto.NotificationPreferencesResponse;
 import com.nhutruong.blood.identity.application.dto.UserProfileResponse;
 import com.nhutruong.blood.identity.domain.User;
 import com.nhutruong.blood.shared.api.ApiResponse;
@@ -33,5 +35,18 @@ public class UserProfileController {
             @Valid @RequestBody UpdateUserProfileRequest request
     ) {
         return ApiResponse.success("Profile updated", UserProfileResponse.from(profileService.updateProfile(user, request)));
+    }
+
+    @GetMapping("/notification-preferences")
+    public ApiResponse<NotificationPreferencesResponse> getNotificationPreferences(@AuthenticationPrincipal User user) {
+        return ApiResponse.success(profileService.getNotificationPreferences(user));
+    }
+
+    @PutMapping("/notification-preferences")
+    public ApiResponse<NotificationPreferencesResponse> updateNotificationPreferences(
+            @AuthenticationPrincipal User user,
+            @Valid @RequestBody UpdateNotificationPreferencesRequest request
+    ) {
+        return ApiResponse.success("Notification preferences updated", profileService.updateNotificationPreferences(user, request));
     }
 }

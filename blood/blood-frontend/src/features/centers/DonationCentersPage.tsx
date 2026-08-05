@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   MapPin,
   List,
@@ -13,6 +13,7 @@ import {
   Loader2,
   ExternalLink,
   Calendar,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -65,6 +66,7 @@ function getDirectionsUrl(center: Center): string {
 }
 
 export function DonationCentersPage() {
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -162,8 +164,15 @@ export function DonationCentersPage() {
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <div className="bg-gradient-to-r from-red-600 to-red-700 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <h1 className="text-3xl md:text-4xl font-bold">Find Donation Centers</h1>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative">
+          <button 
+            onClick={() => navigate(-1)}
+            className="absolute top-4 left-4 sm:left-6 lg:left-8 flex items-center gap-2 text-red-100 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-sm font-medium">Back</span>
+          </button>
+          <h1 className="text-3xl md:text-4xl font-bold mt-4">Find Donation Centers</h1>
           <p className="mt-2 text-red-100 max-w-2xl">
             Discover certified blood donation centers near you and book your appointment.
           </p>

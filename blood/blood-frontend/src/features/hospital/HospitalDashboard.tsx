@@ -1,12 +1,17 @@
+import { useState, useEffect } from 'react';
 import { Activity, CheckCircle, Clock } from 'lucide-react';
 import { useGetPendingRequests } from '@/shared/api/generated/blood-request-controller/blood-request-controller';
+import { getHospitalMetrics, type HospitalMetricsResponse } from '@/shared/api/admin-api';
 
 export function HospitalDashboard() {
   const { data: response } = useGetPendingRequests();
   const requests = ((response?.data as any)?.data as any[]) || [];
-  const fulfilledToday = requests.filter(
-    (r: any) => r.status === 'FULFILLED'
-  ).length;
+  
+  const [metrics, setMetrics] = useState<HospitalMetricsResponse | null>(null);
+  
+  useEffect(() => {
+    getHospitalMetrics().then(setMetrics).catch(console.error);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -18,21 +23,21 @@ export function HospitalDashboard() {
             <Activity className="w-5 h-5 text-red-600" />
             <span className="font-semibold">Pending Requests</span>
           </div>
-          <p className="text-3xl font-bold">{requests.length}</p>
+          <p className="text-3xl font-bold">{metrics?.pendingRequests ?? 0}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <div className="flex items-center gap-3 mb-2">
             <CheckCircle className="w-5 h-5 text-green-600" />
             <span className="font-semibold">Fulfilled Today</span>
           </div>
-          <p className="text-3xl font-bold">{fulfilledToday}</p>
+          <p className="text-3xl font-bold">{metrics?.fulfilledToday ?? 0}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <div className="flex items-center gap-3 mb-2">
             <Clock className="w-5 h-5 text-orange-600" />
             <span className="font-semibold">Avg. Response Time</span>
           </div>
-          <p className="text-3xl font-bold">--</p>
+          <p className="text-3xl font-bold">{metrics?.avgResponseTime ?? "--"}</p>
         </div>
       </div>
 

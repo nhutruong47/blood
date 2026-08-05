@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Heart,
   Users,
@@ -10,31 +10,10 @@ import {
   Quote,
   Award,
   Globe,
+  Loader2,
+  ArrowLeft,
 } from "lucide-react";
-
-const CAMPAIGNS = [
-  {
-    id: 1,
-    title: "Summer Lifesavers Drive",
-    description: "Help maintain critical blood supplies during the high-demand summer months.",
-    image: "summer",
-    color: "from-red-500 to-orange-500",
-  },
-  {
-    id: 2,
-    title: "University Challenge",
-    description: "Partnering with universities across the country to engage young donors.",
-    image: "university",
-    color: "from-blue-500 to-indigo-500",
-  },
-  {
-    id: 3,
-    title: "Corporate Heroes",
-    description: "Companies mobilizing their workforce for monthly donation events.",
-    image: "corporate",
-    color: "from-emerald-500 to-teal-500",
-  },
-];
+import { getCampaigns, type CampaignResponse } from "@/shared/api/admin-api";
 
 const BENEFITS = [
   {
@@ -92,13 +71,39 @@ const PARTNERS = [
 ];
 
 export function CampaignPage() {
+  const navigate = useNavigate();
+  const [campaigns, setCampaigns] = useState<CampaignResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    getCampaigns()
+      .then((data) => {
+        if (!cancelled) setCampaigns(data);
+      })
+      .catch((err) => console.error(err))
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-white">
       {/* Hero */}
       <section className="relative bg-gradient-to-br from-red-600 via-red-700 to-red-800 text-white overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.1),transparent)]" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 relative">
-          <div className="max-w-3xl">
+          <button 
+            onClick={() => navigate(-1)}
+            className="absolute top-4 left-4 sm:left-6 lg:left-8 flex items-center gap-2 text-red-100 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-sm font-medium">Back</span>
+          </button>
+          <div className="max-w-3xl mt-4">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 rounded-full text-sm font-medium mb-6">
               <Heart className="w-4 h-4" aria-hidden="true" />
               National Blood Donation Campaign 2026
@@ -140,9 +145,19 @@ export function CampaignPage() {
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {CAMPAIGNS.map((c) => (
-              <CampaignCard key={c.id} campaign={c} />
-            ))}
+            {isLoading ? (
+              <div className="col-span-full flex justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-red-500" />
+              </div>
+            ) : campaigns.length === 0 ? (
+              <div className="col-span-full text-center text-slate-500 py-12">
+                No active campaigns at the moment.
+              </div>
+            ) : (
+              campaigns.map((c, i) => (
+                <CampaignCard key={c.id} campaign={c} index={i} />
+              ))
+            )}
           </div>
         </div>
       </section>
@@ -286,22 +301,33 @@ export function CampaignPage() {
   );
 }
 
-function CampaignCard({ campaign }: { campaign: (typeof CAMPAIGNS)[number] }) {
+function CampaignCard({ campaign, index }: { campaign: CampaignResponse; index: number }) {
+  const colors = [
+    "from-red-500 to-orange-500",
+    "from-blue-500 to-indigo-500",
+    "from-emerald-500 to-teal-500",
+    "from-purple-500 to-pink-500",
+    "from-amber-500 to-yellow-500",
+  ];
+  const color = colors[index % colors.length];
+
   return (
-    <article className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-xl transition-shadow">
-      <div className={`h-40 bg-gradient-to-br ${campaign.color} flex items-center justify-center`}>
+    <article className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-xl transition-shadow flex flex-col">
+      <div className={`h-40 bg-gradient-to-br ${color} flex items-center justify-center shrink-0`}>
         <Heart className="w-16 h-16 text-white opacity-80" aria-hidden="true" />
       </div>
-      <div className="p-6">
+      <div className="p-6 flex flex-col flex-1">
         <h3 className="text-xl font-bold text-slate-900 mb-2">{campaign.title}</h3>
-        <p className="text-slate-600 mb-4">{campaign.description}</p>
-        <Link
-          to="/centers"
-          className="inline-flex items-center gap-2 text-red-600 font-semibold hover:text-red-700"
-        >
-          Join campaign
-          <ArrowRight className="w-4 h-4" aria-hidden="true" />
-        </Link>
+        <p className="text-slate-600 mb-4 line-clamp-3">{campaign.description}</p>
+        <div className="mt-auto">
+          <Link
+            to="/centers"
+            className="inline-flex items-center gap-2 text-red-600 font-semibold hover:text-red-700"
+          >
+            Join campaign
+            <ArrowRight className="w-4 h-4" aria-hidden="true" />
+          </Link>
+        </div>
       </div>
     </article>
   );

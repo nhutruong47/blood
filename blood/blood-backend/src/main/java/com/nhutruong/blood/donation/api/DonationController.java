@@ -57,4 +57,12 @@ public class DonationController {
                 DonationRegistrationResponse.from(registration)
         );
     }
+
+    @GetMapping("/me/summary")
+    @PreAuthorize("hasRole('DONOR')")
+    public ApiResponse<com.nhutruong.blood.donation.application.dto.DonorSummaryResponse> getDonorSummary(
+            @AuthenticationPrincipal User donor
+    ) {
+        return ApiResponse.success(donationService.getDonorSummary(donor));
+    }
 }

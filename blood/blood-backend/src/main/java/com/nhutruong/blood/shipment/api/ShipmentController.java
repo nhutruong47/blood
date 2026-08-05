@@ -78,6 +78,15 @@ public class ShipmentController {
         return ApiResponse.success(ShipmentResponse.from(shipmentService.getById(id)));
     }
 
+    @GetMapping
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<java.util.List<ShipmentResponse>> getAll() {
+        return ApiResponse.success(
+                shipmentService.getAll().stream()
+                        .map(ShipmentResponse::from).toList()
+        );
+    }
+
     @GetMapping("/request/{requestId}")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<?> getByRequest(@PathVariable Long requestId) {

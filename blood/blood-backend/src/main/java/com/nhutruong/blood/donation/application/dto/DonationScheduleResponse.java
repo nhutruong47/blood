@@ -7,9 +7,13 @@ import java.time.LocalDateTime;
 public record DonationScheduleResponse(
         Long id,
         LocalDateTime donationTime,
-        Integer capacity
+        Integer capacity,
+        Long locationId,
+        String locationName
 ) {
     public static DonationScheduleResponse from(DonationSchedule schedule) {
-        return new DonationScheduleResponse(schedule.getId(), schedule.getDonationTime(), schedule.getCapacity());
+        Long locId = schedule.getLocation() != null ? schedule.getLocation().getId() : null;
+        String locName = schedule.getLocation() != null ? schedule.getLocation().getName() : null;
+        return new DonationScheduleResponse(schedule.getId(), schedule.getDonationTime(), schedule.getCapacity(), locId, locName);
     }
 }

@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Calendar,
   Clock,
@@ -7,12 +8,14 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
-  AlertTriangle,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePublicLocations } from "@/shared/api/generated/donation-location-controller/donation-location-controller";
 import { LoadingSkeleton } from "@/shared/components/LoadingSkeleton";
 import { EmptyState } from "@/shared/components/EmptyState";
+import { useMutation } from "@tanstack/react-query";
+import { getSchedules, createAppointment } from "@/shared/api/admin-api";
 
 interface Slot {
   id: string;
@@ -31,6 +34,7 @@ const TIME_SLOTS = ["08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00
 // the schedule grid until that endpoint ships.
 
 export function SchedulePage() {
+  const navigate = useNavigate();
   const { data: response, isLoading: isCentersLoading } = usePublicLocations();
   const [selectedCenter, setSelectedCenter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<"week" | "two-weeks" | "month">("two-weeks");
@@ -44,7 +48,35 @@ export function SchedulePage() {
   });
 
   const centers: Array<any> = ((response?.data as any)?.data as Array<any>) || [];
-  const allSlots: Slot[] = []; // no real endpoint yet — keep shape for UI
+  const [allSlots, setAllSlots] = useState<Slot[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(true);
+
+  // SchedulePage now fetches real slots from the backend.
+  React.useEffect(() => {
+    let cancelled = false;
+    getSchedules()
+      .then((data) => {
+        if (cancelled) return;
+        const slots: Slot[] = data.map((s) => ({
+          id: String(s.id),
+          centerId: s.locationId || 0,
+          centerName: s.locationName || "Unknown Center",
+          date: new Date(s.donationTime),
+          capacity: s.capacity,
+          booked: 0, // Backend doesn't expose booked yet, so we assume 0
+        }));
+        setAllSlots(slots);
+      })
+      .catch((err) => {
+        console.error("Failed to load schedules", err);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingSlots(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredSlots = useMemo(() => {
     return allSlots.filter((slot) => {
@@ -68,11 +100,23 @@ export function SchedulePage() {
     (a, b) => new Date(a).getTime() - new Date(b).getTime()
   );
 
-  const handleBook = (_slot: Slot) => {
-    toast.warning("Booking endpoint pending", {
-      description:
-        "Use the Book Appointment form to register via /api/donate/register while the slot scheduler ships.",
-    });
+  const bookMutation = useMutation({
+    mutationFn: createAppointment,
+    onSuccess: () => {
+      toast.success("Appointment booked successfully!", {
+        description: "You can view it in your dashboard.",
+      });
+      // Optionally re-fetch schedules here
+    },
+    onError: (err: any) => {
+      toast.error(
+        err?.response?.data?.message ?? "Failed to book appointment. Have you configured your blood group in Profile?"
+      );
+    },
+  });
+
+  const handleBook = (slot: Slot) => {
+    bookMutation.mutate({ scheduleId: parseInt(slot.id, 10), donorNotes: "Booked via Schedule" });
   };
 
   const goPrevWeek = () => {
@@ -96,8 +140,15 @@ export function SchedulePage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="bg-gradient-to-r from-red-600 to-red-700 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <h1 className="text-3xl md:text-4xl font-bold">Donation Schedule</h1>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative">
+          <button 
+            onClick={() => navigate(-1)}
+            className="absolute top-4 left-4 sm:left-6 lg:left-8 flex items-center gap-2 text-red-100 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-sm font-medium">Back</span>
+          </button>
+          <h1 className="text-3xl md:text-4xl font-bold mt-4">Donation Schedule</h1>
           <p className="mt-2 text-red-100">Browse available slots and book your donation appointment</p>
         </div>
       </div>
@@ -173,22 +224,9 @@ export function SchedulePage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 text-amber-800 text-sm">
-          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold">Slot listing endpoint pending</p>
-            <p>
-              The previous version displayed fabricated slot data. The page
-              now shows the real centers list and an honest empty grid until
-              <code className="px-1 bg-amber-100 rounded ml-1">
-                GET /api/schedules
-              </code>
-              ships.
-            </p>
-          </div>
-        </div>
 
-        {isCentersLoading ? (
+
+        {isCentersLoading || isLoadingSlots ? (
           <LoadingSkeleton variant="list" rows={4} />
         ) : sortedDates.length === 0 ? (
           <EmptyState
@@ -204,6 +242,7 @@ export function SchedulePage() {
                 date={new Date(dateKey)}
                 slots={slotsByDate[dateKey]}
                 onBook={handleBook}
+                isBooking={bookMutation.isPending}
               />
             ))}
           </div>
@@ -215,6 +254,7 @@ export function SchedulePage() {
             onPrevWeek={goPrevWeek}
             onNextWeek={goNextWeek}
             onBook={handleBook}
+            isBooking={bookMutation.isPending}
           />
         )}
       </div>
@@ -226,10 +266,12 @@ function DateGroup({
   date,
   slots,
   onBook,
+  isBooking,
 }: {
   date: Date;
   slots: Slot[];
   onBook: (slot: Slot) => void;
+  isBooking: boolean;
 }) {
   const dayLabel = date.toLocaleDateString(undefined, {
     weekday: "long",
@@ -251,7 +293,7 @@ function DateGroup({
       </h2>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {slots.map((slot) => (
-          <SlotCard key={slot.id} slot={slot} onBook={onBook} />
+          <SlotCard key={slot.id} slot={slot} onBook={onBook} isBooking={isBooking} />
         ))}
       </div>
     </section>
@@ -261,9 +303,11 @@ function DateGroup({
 function SlotCard({
   slot,
   onBook,
+  isBooking,
 }: {
   slot: Slot;
   onBook: (slot: Slot) => void;
+  isBooking: boolean;
 }) {
   const time = slot.date.toLocaleTimeString(undefined, {
     hour: "2-digit",
@@ -312,10 +356,10 @@ function SlotCard({
       </div>
       <button
         onClick={() => onBook(slot)}
-        disabled={remaining === 0}
+        disabled={remaining === 0 || isBooking}
         className="w-full px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed text-sm"
       >
-        {remaining === 0 ? "Fully Booked" : "Book Appointment"}
+        {isBooking ? "Booking..." : remaining === 0 ? "Fully Booked" : "Book Appointment"}
       </button>
     </div>
   );
@@ -328,6 +372,7 @@ function CalendarView({
   onPrevWeek,
   onNextWeek,
   onBook,
+  isBooking,
 }: {
   weekStart: Date;
   weekDays: Date[];
@@ -335,6 +380,7 @@ function CalendarView({
   onPrevWeek: () => void;
   onNextWeek: () => void;
   onBook: (slot: Slot) => void;
+  isBooking: boolean;
 }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-4">
@@ -388,14 +434,14 @@ function CalendarView({
                       <button
                         key={slot.id}
                         onClick={() => onBook(slot)}
-                        disabled={remaining === 0}
+                        disabled={remaining === 0 || isBooking}
                         className={`w-full text-xs px-2 py-1 rounded font-medium transition-colors ${
                           remaining === 0
                             ? "bg-slate-100 text-slate-500 cursor-not-allowed"
                             : remaining <= 2
                             ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
                             : "bg-green-100 text-green-700 hover:bg-green-200"
-                        }`}
+                        } ${isBooking ? 'opacity-50 cursor-wait' : ''}`}
                       >
                         {slot.date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
                       </button>

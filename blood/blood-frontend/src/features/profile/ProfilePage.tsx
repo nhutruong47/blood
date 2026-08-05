@@ -17,15 +17,11 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AXIOS_INSTANCE } from "@/shared/api/axios-instance";
+
 import { formatBloodGroup } from "@/shared/constants/bloodGroups";
 
-interface ActivityEntry {
-  id: string;
-  type: "donation" | "request" | "certificate" | "appointment";
-  title: string;
-  date: string;
-  status?: string;
-}
+import { getDonorSummary, type DonorSummary, type ActivityEntry } from "@/shared/api/admin-api";
+import { generateCertificate } from "@/shared/utils/certificate";
 
 interface UserProfile {
   phone?: string | null;
@@ -37,35 +33,7 @@ interface UserProfile {
   nextEligibleDate?: string | null;
 }
 
-const SAMPLE_TIMELINE: ActivityEntry[] = [
-  {
-    id: "a-1",
-    type: "donation",
-    title: "Whole blood donation - Blood Center District 1",
-    date: "2026-04-12",
-    status: "Completed",
-  },
-  {
-    id: "a-2",
-    type: "certificate",
-    title: "Certificate of Achievement issued",
-    date: "2026-04-12",
-  },
-  {
-    id: "a-3",
-    type: "appointment",
-    title: "Scheduled appointment at Cho Ray Hospital",
-    date: "2026-08-04",
-    status: "Confirmed",
-  },
-  {
-    id: "a-4",
-    type: "request",
-    title: "Emergency request fulfilled",
-    date: "2026-02-27",
-    status: "Matched",
-  },
-];
+
 
 const ACTIVITY_ICONS: Record<ActivityEntry["type"], React.ComponentType<{ className?: string }>> = {
   donation: Heart,
@@ -74,11 +42,7 @@ const ACTIVITY_ICONS: Record<ActivityEntry["type"], React.ComponentType<{ classN
   appointment: Calendar,
 };
 
-function addDays(base: Date, days: number): Date {
-  const next = new Date(base);
-  next.setDate(next.getDate() + days);
-  return next;
-}
+
 
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -91,11 +55,14 @@ function formatDate(date: Date): string {
 export function ProfilePage() {
   const { user, isAuthenticated } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [summary, setSummary] = useState<DonorSummary | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) return;
 
     let cancelled = false;
+    
+    // Fetch user profile
     AXIOS_INSTANCE.get("/api/profile")
       .then((response) => {
         if (!cancelled) {
@@ -103,9 +70,18 @@ export function ProfilePage() {
         }
       })
       .catch(() => {
+        if (!cancelled) setProfile(null);
+      });
+
+    // Fetch donor summary
+    getDonorSummary()
+      .then((data) => {
         if (!cancelled) {
-          setProfile(null);
+          setSummary(data);
         }
+      })
+      .catch((err) => {
+        console.error("Failed to load donor summary", err);
       });
 
     return () => {
@@ -114,21 +90,21 @@ export function ProfilePage() {
   }, [isAuthenticated]);
 
   const stats = useMemo(() => {
+    if (!summary) return null;
     const today = new Date();
-    const lastDonation = new Date("2026-04-12");
-    const nextEligible = addDays(lastDonation, 90);
+    const nextEligible = new Date(summary.nextEligibleDate || today);
     const daysUntilEligible = Math.max(
       0,
       Math.round((nextEligible.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)),
     );
     return {
-      totalDonations: 7,
-      lastDonation: formatDate(lastDonation),
-      nextEligible: formatDate(nextEligible),
+      totalDonations: summary.totalDonations,
+      lastDonation: summary.lastDonationDate ? formatDate(new Date(summary.lastDonationDate)) : "N/A",
+      nextEligible: summary.nextEligibleDate ? formatDate(nextEligible) : "Now",
       daysUntilEligible,
-      livesSaved: 21,
+      livesSaved: summary.livesSaved,
     };
-  }, []);
+  }, [summary]);
 
   const initials =
     [user?.firstName, user?.lastName]
@@ -219,8 +195,8 @@ export function ProfilePage() {
         </section>
 
         <aside className="space-y-6">
-          <DonationStats stats={stats} />
-          <CertificatePanel />
+          {stats && <DonationStats stats={stats} />}
+          <CertificatePanel user={user} stats={stats} />
         </aside>
       </div>
 
@@ -234,23 +210,27 @@ export function ProfilePage() {
           </Link>
         </header>
         <ol className="divide-y divide-slate-100">
-          {SAMPLE_TIMELINE.map((entry) => {
-            const Icon = ACTIVITY_ICONS[entry.type];
-            return (
-              <li key={entry.id} className="flex items-start gap-3 p-4">
-                <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-                  <Icon className="w-5 h-5 text-red-600" aria-hidden="true" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-slate-900 truncate">{entry.title}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {formatDate(new Date(entry.date))}
-                    {entry.status ? ` • ${entry.status}` : ""}
-                  </p>
-                </div>
-              </li>
-            );
-          })}
+          {!summary?.recentActivities?.length ? (
+            <li className="p-4 text-sm text-slate-500 text-center">No recent activity</li>
+          ) : (
+            summary.recentActivities.map((entry) => {
+              const Icon = ACTIVITY_ICONS[entry.type] || Heart;
+              return (
+                <li key={entry.id} className="flex items-start gap-3 p-4">
+                  <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                    <Icon className="w-5 h-5 text-red-600" aria-hidden="true" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-slate-900 truncate">{entry.title}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {formatDate(new Date(entry.date))}
+                      {entry.status ? ` • ${entry.status.replace(/_/g, " ")}` : ""}
+                    </p>
+                  </div>
+                </li>
+              );
+            })
+          )}
         </ol>
       </section>
     </div>
@@ -333,7 +313,17 @@ function StatTile({ label, value, tone }: { label: string; value: string; tone: 
   );
 }
 
-function CertificatePanel() {
+function CertificatePanel({ user, stats }: { user: any, stats: any }) {
+  const handleDownload = () => {
+    if (!stats || stats.totalDonations === 0) {
+      window.alert("You need at least one donation to generate a certificate.");
+      return;
+    }
+    const name = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Hero';
+    const bloodType = user?.bloodGroup?.replace('_POSITIVE', '+').replace('_NEGATIVE', '-') || 'Unknown';
+    generateCertificate(name, stats.totalDonations, bloodType);
+  };
+
   return (
     <section className="bg-white rounded-xl border border-slate-200 shadow-sm">
       <header className="px-5 py-4 border-b border-slate-200 bg-slate-50">
@@ -349,7 +339,7 @@ function CertificatePanel() {
         <button
           type="button"
           className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-          onClick={() => window.alert("Certificate download coming soon.")}
+          onClick={handleDownload}
         >
           <Download className="w-4 h-4" aria-hidden="true" /> Download certificate (PDF)
         </button>

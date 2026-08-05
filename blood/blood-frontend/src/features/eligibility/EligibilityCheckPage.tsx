@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Heart,
   CheckCircle,
@@ -12,6 +12,7 @@ import {
   Calendar,
   Shield,
   Loader2,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCheckEligibility } from "@/shared/api/generated/donation-controller/donation-controller";
@@ -69,6 +70,7 @@ const LIFESTYLE_FACTORS: Array<{
 ];
 
 export function EligibilityCheckPage() {
+  const navigate = useNavigate();
   const [step, setStep] = useState<Step>(0);
   const [answers, setAnswers] = useState<EligibilityAnswers>({
     age: "",
@@ -129,8 +131,12 @@ export function EligibilityCheckPage() {
   };
 
   const handleBack = () => {
-    setErrors({});
-    setStep((s) => (s - 1) as Step);
+    if (step === 0) {
+      navigate(-1);
+    } else {
+      setErrors({});
+      setStep((s) => (s - 1) as Step);
+    }
   };
 
   const submit = async () => {
@@ -276,8 +282,15 @@ export function EligibilityCheckPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-red-600 to-red-700 text-white">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div className="bg-gradient-to-r from-red-600 to-red-700 text-white relative">
+        <button 
+          onClick={() => navigate(-1)}
+          className="absolute top-4 left-4 sm:left-6 lg:left-8 flex items-center gap-2 text-red-100 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span className="text-sm font-medium">Back</span>
+        </button>
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10 mt-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
               <Activity className="w-7 h-7" aria-hidden="true" />
@@ -353,12 +366,7 @@ export function EligibilityCheckPage() {
         <div className="flex justify-between mt-6">
           <button
             onClick={handleBack}
-            disabled={step === 0}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
-              step === 0
-                ? "text-slate-400 cursor-not-allowed"
-                : "text-slate-700 hover:bg-slate-100"
-            }`}
+            className="flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all text-slate-700 hover:bg-slate-100"
           >
             <ChevronLeft className="w-5 h-5" aria-hidden="true" />
             Back
