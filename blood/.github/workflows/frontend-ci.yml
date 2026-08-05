@@ -32,3 +32,15 @@ jobs:
 
       - name: Build (tsc + vite)
         run: npm run build
+
+      - name: Upload production bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: blood-frontend-dist
+          path: blood-frontend/dist
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Dependency graph (Dependabot/Renovate consumer)
+        uses: actions/dependency-graph-submission@v4
+        if: github.event_name == 'push'

@@ -27,25 +27,29 @@ public class RefreshTokenService {
         this.userRepository = userRepository;
     }
 
+    @Transactional(readOnly = true)
     public Optional<RefreshToken> findByToken(String token) {
         return refreshTokenRepository.findByToken(token);
     }
 
     @Transactional
     public RefreshToken createRefreshToken(Long userId) {
-        refreshTokenRepository.findByUserId(userId)
-                .ifPresent(refreshTokenRepository::delete);
-
-        RefreshToken refreshToken = new RefreshToken();
-
-        refreshToken.setUser(userRepository.findById(userId).orElseThrow(
+        var user = userRepository.findById(userId).orElseThrow(
                 () -> new BusinessException(ErrorCode.VALIDATION_ERROR, "User not found")
-        ));
+        );
+
+        // There is a one-to-one constraint between a user and a refresh token.
+        // Reuse the managed entity so Hibernate issues an UPDATE when a user
+        // signs in again instead of scheduling a DELETE and INSERT in an order
+        // that can temporarily violate that constraint.
+        RefreshToken refreshToken = refreshTokenRepository.findByUserId(userId)
+                .orElseGet(RefreshToken::new);
+
+        refreshToken.setUser(user);
         refreshToken.setExpiryDate(Instant.now().plusMillis(refreshTokenDurationMs));
         refreshToken.setToken(UUID.randomUUID().toString());
 
-        refreshToken = refreshTokenRepository.save(refreshToken);
-        return refreshToken;
+        return refreshTokenRepository.save(refreshToken);
     }
 
     @Transactional

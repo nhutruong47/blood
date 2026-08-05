@@ -12,7 +12,8 @@ import com.nhutruong.blood.inventory.application.ReservationService;
 import com.nhutruong.blood.inventory.domain.BloodComponentType;
 import com.nhutruong.blood.shared.exception.BusinessException;
 import com.nhutruong.blood.shared.exception.ErrorCode;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,9 +22,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Set;
 
-@Slf4j
 @Service
 public class BloodRequestService {
+    private static final Logger log = LoggerFactory.getLogger(BloodRequestService.class);
+
     private static final Set<BloodRequestStatus> STAFF_DECISIONS = Set.of(
             BloodRequestStatus.APPROVED,
             BloodRequestStatus.REJECTED
@@ -90,21 +92,23 @@ public class BloodRequestService {
         request.setApprovedBy(staff);
         if (input.status() == BloodRequestStatus.REJECTED) {
             request.setStatus(BloodRequestStatus.REJECTED);
-        } else {
-            request.setStatus(BloodRequestStatus.APPROVED);
-            try {
-                var reserved = reservationService.reserve(
-                        requestId,
-                        request.getBloodGroup(),
-                        request.getComponentType(),
-                        request.getQuantityUnits()
-                );
-                request.setStatus(BloodRequestStatus.RESERVED);
-                log.info("Auto-reserved {} units for request #{}", reserved.size(), requestId);
-            } catch (BusinessException exception) {
-                log.warn("Could not auto-reserve for request #{}: {}", requestId, exception.getMessage());
-            }
+            bloodRequestRepository.save(request);
+            eventPublisher.publishEvent(new BloodRequestApprovedEvent(request));
+            return request;
         }
+
+        // APPROVED path — attempt auto-reservation. If inventory is insufficient
+        // we propagate the error so the staff knows immediately rather than
+        // silently leaving the request in APPROVED state with no units reserved.
+        request.setStatus(BloodRequestStatus.APPROVED);
+        var reserved = reservationService.reserve(
+                requestId,
+                request.getBloodGroup(),
+                request.getComponentType(),
+                request.getQuantityUnits()
+        );
+        request.setStatus(BloodRequestStatus.RESERVED);
+        log.info("Auto-reserved {} units for request #{}", reserved.size(), requestId);
 
         BloodRequest saved = bloodRequestRepository.save(request);
         eventPublisher.publishEvent(new BloodRequestApprovedEvent(saved));

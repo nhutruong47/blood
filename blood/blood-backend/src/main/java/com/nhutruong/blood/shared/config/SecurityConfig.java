@@ -9,7 +9,6 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -65,7 +64,16 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.csrf(AbstractHttpConfigurer::disable)
+        http.csrf(csrf -> csrf
+                // CSRF is DISABLED for this API because:
+                // 1. This is a pure JWT Bearer-token API (no session cookies)
+                // 2. Tokens are stored client-side (localStorage) — not sent automatically
+                // 3. All state-modifying requests require Authorization: Bearer <token> header
+                // 4. SameSite=Lax cookie policy is not applicable (no cookies used)
+                //
+                // If cookies are introduced (e.g., for web sessions), CSRF MUST be re-enabled.
+                .disable()
+        )
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests((authorize) -> authorize
                         .requestMatchers(
@@ -74,6 +82,7 @@ public class SecurityConfig {
                                 "/api/refresh",
                                 "/api/logout",
                                 "/api/forgot-password",
+                                "/api/reset-password",
                                 "/api/v1/auth/**",
                                 "/api/auth/**"
                         ).permitAll()

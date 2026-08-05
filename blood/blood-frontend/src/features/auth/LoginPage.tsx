@@ -29,7 +29,7 @@ function dashboardPathForRole(role: User["role"] | string): string {
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, user } = useAuth();
+  const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
 
   const {
@@ -43,10 +43,10 @@ export function LoginPage() {
 
   const onSubmit = async (data: LoginFormValues) => {
     try {
-      await login(data.email, data.password);
+      const loggedInUser = await login(data.email, data.password);
       const redirectTarget =
         (location.state as { from?: string } | null)?.from ||
-        dashboardPathForRole(user?.role || "");
+        dashboardPathForRole(loggedInUser.role);
       toast.success("Welcome back! Signing you in...");
       navigate(redirectTarget, { replace: true });
     } catch (err: unknown) {

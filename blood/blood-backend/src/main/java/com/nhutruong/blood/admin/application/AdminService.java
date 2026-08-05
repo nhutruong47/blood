@@ -4,6 +4,7 @@ import com.nhutruong.blood.audit.application.AuditService;
 import com.nhutruong.blood.audit.domain.AuditAction;
 import com.nhutruong.blood.audit.domain.AuditEvent;
 import com.nhutruong.blood.audit.infrastructure.AuditEventRepository;
+import com.nhutruong.blood.identity.application.dto.CurrentUserResponse;
 import com.nhutruong.blood.identity.domain.User;
 import com.nhutruong.blood.identity.infrastructure.UserRepository;
 import com.nhutruong.blood.notification.domain.NotificationMessage;
@@ -11,6 +12,7 @@ import com.nhutruong.blood.notification.domain.NotificationStatus;
 import com.nhutruong.blood.notification.infrastructure.NotificationMessageRepository;
 import com.nhutruong.blood.shared.exception.BusinessException;
 import com.nhutruong.blood.shared.exception.ErrorCode;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,8 +50,11 @@ public class AdminService {
     }
 
     @Transactional(readOnly = true)
-    public List<User> listUsers(Pageable pageable) {
-        return userRepository.findAll(pageable).getContent();
+    public List<CurrentUserResponse> listUsers(Pageable pageable) {
+        return userRepository.findAll(pageable).getContent()
+                .stream()
+                .map(CurrentUserResponse::from)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -59,14 +64,10 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public List<NotificationMessage> listNotificationsForUser(long userId, int limit) {
-        // Simple in-memory limit. A richer query (paginated, status filtered)
-        // can replace this when the notification volume grows.
-        List<NotificationMessage> all = notificationMessageRepository.findAll();
-        return all.stream()
-                .filter(n -> n.getRecipient() != null && userId == n.getRecipient().getId())
-                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
-                .limit(limit)
-                .toList();
+        int safeLimit = Math.max(1, Math.min(limit, 200));
+        return notificationMessageRepository
+                .findByRecipientIdOrderByCreatedAtDesc(userId, PageRequest.of(0, safeLimit))
+                .getContent();
     }
 
     @Transactional

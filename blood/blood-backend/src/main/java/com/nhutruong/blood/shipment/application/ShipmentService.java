@@ -11,17 +11,18 @@ import com.nhutruong.blood.shipment.infrastructure.ShipmentRepository;
 import com.nhutruong.blood.shared.exception.BusinessException;
 import com.nhutruong.blood.shared.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ShipmentService {
+    private static final Logger log = LoggerFactory.getLogger(ShipmentService.class);
     private final ShipmentRepository shipmentRepository;
     private final BloodRequestRepository bloodRequestRepository;
     private final AuditService auditService;
@@ -57,7 +58,8 @@ public class ShipmentService {
 
     @Transactional
     public Shipment markPickedUp(Long shipmentId, Double temperature, User staff) {
-        Shipment shipment = getShipment(shipmentId);
+        Shipment shipment = shipmentRepository.findWithRelationsById(shipmentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Shipment not found"));
         shipment.setStatus(Shipment.ShipmentStatus.PICKED_UP);
         shipment.setPickedUpAt(LocalDateTime.now());
         shipment.setTemperatureAtPickup(temperature);
@@ -73,7 +75,8 @@ public class ShipmentService {
 
     @Transactional
     public Shipment addCheckpoint(Long shipmentId, String location, String description, Double temperature, User staff) {
-        Shipment shipment = getShipment(shipmentId);
+        Shipment shipment = shipmentRepository.findWithRelationsById(shipmentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Shipment not found"));
         shipment.addCheckpoint(location, description, temperature);
         shipment.setStatus(Shipment.ShipmentStatus.IN_TRANSIT);
         Shipment saved = shipmentRepository.save(shipment);
@@ -83,7 +86,8 @@ public class ShipmentService {
 
     @Transactional
     public Shipment confirmDelivery(Long shipmentId, String receivedBy, String notes, User staff) {
-        Shipment shipment = getShipment(shipmentId);
+        Shipment shipment = shipmentRepository.findWithRelationsById(shipmentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Shipment not found"));
         shipment.setStatus(Shipment.ShipmentStatus.DELIVERED);
         shipment.setDeliveredAt(LocalDateTime.now());
         shipment.addCheckpoint("Hospital: " + receivedBy, "Package delivered", null);
@@ -106,16 +110,12 @@ public class ShipmentService {
 
     @Transactional(readOnly = true)
     public Shipment getById(Long id) {
-        return getShipment(id);
+        return shipmentRepository.findWithRelationsById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Shipment not found"));
     }
 
     @Transactional(readOnly = true)
     public List<Shipment> getByRequest(Long requestId) {
-        return shipmentRepository.findByBloodRequestId(requestId);
-    }
-
-    private Shipment getShipment(Long id) {
-        return shipmentRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Shipment not found"));
+        return shipmentRepository.findWithRelationsByBloodRequestId(requestId);
     }
 }

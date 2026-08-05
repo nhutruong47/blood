@@ -11,14 +11,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up JDK 21
-      uses: actions/setup-java@v4
-      with:
-        java-version: '21'
-        distribution: 'temurin'
-        cache: maven
-        
-    - name: Build and Test with Maven
-      run: mvn -B clean verify
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Cache Maven local repo (best-effort across runner versions)
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-m2-
+
+      - name: Build (no tests) for fast feedback
+        run: mvn -B -ntp -DskipTests package
+
+      - name: Run tests (parallel)
+        run: mvn -B -ntp verify -DforkCount=2C -DreuseForks=true
+
+      - name: Upload Spring Boot fat-jar as CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blood-backend-jar
+          path: blood-backend/target/*.jar
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Dependency graph (for Dependabot/Renovate to consume)
+        uses: actions/dependency-graph-submission@v4
+        if: github.event_name == 'push'

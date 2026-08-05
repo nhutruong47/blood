@@ -27,7 +27,8 @@ import type {
 import type {
   ApiResponseListOrganizationResponse,
   ApiResponseOrganizationResponse,
-  CreateOrganizationRequest
+  CreateOrganizationRequest,
+  OrganizationStatusChangeRequest
 } from '../model';
 
 import { customInstance } from '../../axios-instance';
@@ -309,4 +310,152 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getVerifyMutationOptions(options), queryClient);
+    }
+    export type rejectResponse200 = {
+  data: ApiResponseOrganizationResponse
+  status: 200
+}
+
+export type rejectResponseSuccess = (rejectResponse200) & {
+  headers: Headers;
+};
+;
+
+export type rejectResponse = (rejectResponseSuccess)
+
+export const getRejectUrl = (id: number,) => {
+
+
+
+
+  return `/api/organizations/${id}/reject`
+}
+
+export const reject = async (id: number, organizationStatusChangeRequest: OrganizationStatusChangeRequest, options?: Parameters<typeof customInstance>[1]): Promise<rejectResponse> => {
+
+  return customInstance<rejectResponse>(getRejectUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(organizationStatusChangeRequest)
+  }
+);}
+
+
+
+
+export const getRejectMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reject>>, TError,{id: number; data: OrganizationStatusChangeRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof reject>>, TError,{id: number; data: OrganizationStatusChangeRequest}, TContext> => {
+
+const mutationKey = ['reject'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reject>>, {id: number; data: OrganizationStatusChangeRequest}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reject(id,data,requestOptions)
+        }
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectMutationResult = NonNullable<Awaited<ReturnType<typeof reject>>>
+
+    export type RejectMutationError = unknown
+
+    export const useReject = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reject>>, TError,{id: number; data: OrganizationStatusChangeRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reject>>,
+        TError,
+        {id: number; data: OrganizationStatusChangeRequest},
+        TContext
+      > => {
+      return useMutation(getRejectMutationOptions(options), queryClient);
+    }
+    export type suspendResponse200 = {
+  data: ApiResponseOrganizationResponse
+  status: 200
+}
+
+export type suspendResponseSuccess = (suspendResponse200) & {
+  headers: Headers;
+};
+;
+
+export type suspendResponse = (suspendResponseSuccess)
+
+export const getSuspendUrl = (id: number,) => {
+
+
+
+
+  return `/api/organizations/${id}/suspend`
+}
+
+export const suspend = async (id: number, organizationStatusChangeRequest: OrganizationStatusChangeRequest, options?: Parameters<typeof customInstance>[1]): Promise<suspendResponse> => {
+
+  return customInstance<suspendResponse>(getSuspendUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(organizationStatusChangeRequest)
+  }
+);}
+
+
+
+
+export const getSuspendMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspend>>, TError,{id: number; data: OrganizationStatusChangeRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof suspend>>, TError,{id: number; data: OrganizationStatusChangeRequest}, TContext> => {
+
+const mutationKey = ['suspend'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof suspend>>, {id: number; data: OrganizationStatusChangeRequest}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  suspend(id,data,requestOptions)
+        }
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SuspendMutationResult = NonNullable<Awaited<ReturnType<typeof suspend>>>
+
+    export type SuspendMutationError = unknown
+
+    export const useSuspend = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspend>>, TError,{id: number; data: OrganizationStatusChangeRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof suspend>>,
+        TError,
+        {id: number; data: OrganizationStatusChangeRequest},
+        TContext
+      > => {
+      return useMutation(getSuspendMutationOptions(options), queryClient);
     }

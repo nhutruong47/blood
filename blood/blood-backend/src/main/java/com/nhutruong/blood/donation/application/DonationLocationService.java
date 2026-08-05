@@ -77,8 +77,18 @@ public class DonationLocationService {
 
     @Transactional(readOnly = true)
     public List<NearbyDonationLocationResponse> nearby(double latitude, double longitude, double radiusKm) {
-        return locationRepository.findByPublishedTrue().stream()
-                .filter(location -> location.getLatitude() != null && location.getLongitude() != null)
+        // Pre-filter with a bounding box so SQL Server can use the
+        // geo index instead of streaming every published location.
+        final double latDelta = radiusKm / 111.0;
+        final double cosLat = Math.cos(Math.toRadians(latitude));
+        final double lngDelta = radiusKm / (111.0 * Math.max(0.1, Math.abs(cosLat)));
+
+        double minLat = latitude  - latDelta;
+        double maxLat = latitude  + latDelta;
+        double minLng = longitude - lngDelta;
+        double maxLng = longitude + lngDelta;
+
+        return locationRepository.findPublishedInBoundingBox(minLat, maxLat, minLng, maxLng).stream()
                 .map(location -> new NearbyDonationLocationResponse(
                         DonationLocationResponse.from(location),
                         roundDistance(distanceKm(latitude, longitude, location.getLatitude(), location.getLongitude()))

@@ -10,6 +10,7 @@ import com.nhutruong.blood.organization.application.dto.AddMemberRequest;
 import com.nhutruong.blood.organization.application.dto.CreateOrganizationRequest;
 import com.nhutruong.blood.organization.application.dto.OrganizationMemberResponse;
 import com.nhutruong.blood.organization.application.dto.OrganizationResponse;
+import com.nhutruong.blood.organization.application.dto.OrganizationStatusChangeRequest;
 import com.nhutruong.blood.organization.domain.Organization;
 import com.nhutruong.blood.organization.domain.OrganizationMember;
 import com.nhutruong.blood.organization.infrastructure.OrganizationMemberRepository;
@@ -67,6 +68,28 @@ public class OrganizationController {
     ) {
         return ApiResponse.success("Organization verified",
                 OrganizationResponse.from(verificationService.verify(id, admin.getId())));
+    }
+
+    @PostMapping("/{id}/reject")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    public ApiResponse<OrganizationResponse> reject(
+            @PathVariable Long id,
+            @Valid @RequestBody OrganizationStatusChangeRequest request,
+            @AuthenticationPrincipal User admin
+    ) {
+        return ApiResponse.success("Organization rejected",
+                OrganizationResponse.from(verificationService.reject(id, admin.getId(), request.reason())));
+    }
+
+    @PostMapping("/{id}/suspend")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    public ApiResponse<OrganizationResponse> suspend(
+            @PathVariable Long id,
+            @Valid @RequestBody OrganizationStatusChangeRequest request,
+            @AuthenticationPrincipal User admin
+    ) {
+        return ApiResponse.success("Organization suspended",
+                OrganizationResponse.from(verificationService.suspend(id, admin.getId(), request.reason())));
     }
 
     @GetMapping

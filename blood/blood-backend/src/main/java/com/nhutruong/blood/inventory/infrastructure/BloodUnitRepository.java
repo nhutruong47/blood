@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Optional;
 
@@ -58,5 +59,22 @@ public interface BloodUnitRepository extends JpaRepository<BloodUnit, Long> {
 
     List<BloodUnit> findByStatusAndUpdatedAtBefore(BloodUnitStatus status, LocalDateTime dateTime);
 
+    /**
+     * Aggregation that drives the analytics dashboard's blood-type distribution
+     * chart. Returns a dense map so the controller doesn't need to seed
+     * missing buckets with zero.
+     */
+    @Query("SELECT b.bloodGroup, COUNT(b) FROM BloodUnit b GROUP BY b.bloodGroup")
+    List<Object[]> countByBloodGroupRows();
 
+    /** Convenience wrapper that materialises the rows into a typed map. */
+    default EnumMap<BloodGroup, Long> countByBloodGroup() {
+        EnumMap<BloodGroup, Long> result = new EnumMap<>(BloodGroup.class);
+        for (Object[] row : countByBloodGroupRows()) {
+            if (row[0] instanceof BloodGroup g) {
+                result.put(g, ((Number) row[1]).longValue());
+            }
+        }
+        return result;
+    }
 }

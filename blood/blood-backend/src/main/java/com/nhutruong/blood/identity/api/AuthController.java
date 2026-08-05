@@ -7,23 +7,26 @@ import com.nhutruong.blood.identity.application.dto.ForgotPasswordRequest;
 import com.nhutruong.blood.identity.application.dto.LoginRequest;
 import com.nhutruong.blood.identity.application.dto.LoginResponse;
 import com.nhutruong.blood.identity.application.dto.RegisterRequest;
+import com.nhutruong.blood.identity.application.dto.ResetPasswordRequest;
 import com.nhutruong.blood.identity.application.dto.UpdateMeRequest;
 import com.nhutruong.blood.identity.domain.User;
 import com.nhutruong.blood.shared.api.ApiResponse;
 import com.nhutruong.blood.shared.security.SessionUser;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import com.nhutruong.blood.identity.application.RefreshTokenService;
 import com.nhutruong.blood.shared.security.JwtTokenProvider;
 
-@Slf4j
 @RestController
 @RequestMapping("/api")
 public class AuthController {
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+
     private final AuthService authService;
     private final RefreshTokenService refreshTokenService;
     private final JwtTokenProvider jwtTokenProvider;
@@ -52,7 +55,14 @@ public class AuthController {
     @PostMapping("/forgot-password")
     public ApiResponse<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.requestPasswordReset(request.email());
+        // Return same message whether email exists or not to prevent enumeration
         return ApiResponse.success("If that email exists, a reset link has been sent.", null);
+    }
+
+    @PostMapping("/reset-password")
+    public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ApiResponse.success("Password has been reset successfully. Please login with your new password.", null);
     }
 
     @PostMapping("/refresh")

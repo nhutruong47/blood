@@ -1,18 +1,22 @@
 package com.nhutruong.blood.identity.domain;
 
 import com.nhutruong.blood.shared.domain.BaseAuditEntity;
-import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
 
 import java.time.Instant;
 
-@Entity
+@jakarta.persistence.Entity
+@org.hibernate.envers.Audited
 @Table(name = "refresh_tokens")
-@Getter
-@Setter
 public class RefreshToken extends BaseAuditEntity {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -26,4 +30,32 @@ public class RefreshToken extends BaseAuditEntity {
 
     @Column(nullable = false)
     private Instant expiryDate;
+
+    public Long getId() {
+        return id;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public String getToken() {
+        return token;
+    }
+
+    public Instant getExpiryDate() {
+        return expiryDate;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+
+    public void setToken(String token) {
+        this.token = token;
+    }
+
+    public void setExpiryDate(Instant expiryDate) {
+        this.expiryDate = expiryDate;
+    }
 }

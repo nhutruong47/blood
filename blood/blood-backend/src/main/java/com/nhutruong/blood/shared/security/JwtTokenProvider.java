@@ -2,7 +2,8 @@ package com.nhutruong.blood.shared.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.security.core.Authentication;
@@ -14,15 +15,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.UUID;
 
-@Slf4j
 @Component
 public class JwtTokenProvider {
+    private static final Logger log = LoggerFactory.getLogger(JwtTokenProvider.class);
 
     private static final int MIN_SECRET_LENGTH = 32;
 
     private final String jwtSecret;
     private final long jwtExpirationDate;
     private final Environment environment;
+    private volatile SecretKey signingKey;
 
     public JwtTokenProvider(
             @Value("${app.jwt-secret:}") String jwtSecret,
@@ -53,10 +55,23 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    /**
+     * Cached {@link SecretKey} built once from the validated secret. Avoids
+     * re-parsing the secret bytes on every authenticated request.
+     */
     private SecretKey getSigningKey() {
-        String secret = ensureSecureSecret();
-        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
-        return Keys.hmacShaKeyFor(keyBytes);
+        SecretKey key = signingKey;
+        if (key == null) {
+            synchronized (this) {
+                key = signingKey;
+                if (key == null) {
+                    byte[] keyBytes = ensureSecureSecret().getBytes(StandardCharsets.UTF_8);
+                    key = Keys.hmacShaKeyFor(keyBytes);
+                    signingKey = key;
+                }
+            }
+        }
+        return key;
     }
 
     /**

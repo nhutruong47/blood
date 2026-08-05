@@ -4,15 +4,17 @@ import com.nhutruong.blood.audit.domain.AuditAction;
 import com.nhutruong.blood.audit.domain.AuditEvent;
 import com.nhutruong.blood.audit.infrastructure.AuditEventRepository;
 import com.nhutruong.blood.identity.domain.User;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Slf4j
 @Service
 public class AuditService {
+    private static final Logger log = LoggerFactory.getLogger(AuditService.class);
+
     private final AuditEventRepository auditEventRepository;
 
     public AuditService(AuditEventRepository auditEventRepository) {

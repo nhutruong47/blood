@@ -76,6 +76,7 @@ export * from './nearbyLocationsParams';
 export * from './organizationResponse';
 export * from './organizationResponseStatus';
 export * from './organizationResponseType';
+export * from './organizationStatusChangeRequest';
 export * from './processBloodRequestRequest';
 export * from './processBloodRequestRequestStatus';
 export * from './recordLabTestRequest';

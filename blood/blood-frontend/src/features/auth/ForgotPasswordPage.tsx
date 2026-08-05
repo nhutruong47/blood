@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Link } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, Loader2, Mail, Send } from "lucide-react";
 import { toast } from "sonner";
-import axios from "axios";
+import { AXIOS_INSTANCE } from "@/shared/api/axios-instance";
 
 const forgotPasswordSchema = z.object({
   email: z.string().min(1, "Email is required").email("Invalid email address"),
@@ -32,8 +32,7 @@ export function ForgotPasswordPage() {
     setState("submitting");
     setErrorMessage(null);
     try {
-      const baseURL = (axios.defaults.baseURL ?? "http://localhost:8080").replace(/\/$/, "");
-      await axios.post(`${baseURL}/api/forgot-password`, { email: data.email });
+      await AXIOS_INSTANCE.post("/api/forgot-password", { email: data.email });
       setState("sent");
       toast.success("If that email exists, a reset link has been sent.");
     } catch (err: unknown) {

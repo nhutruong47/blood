@@ -5,6 +5,9 @@ import com.nhutruong.blood.shipment.application.ShipmentService;
 import com.nhutruong.blood.shipment.domain.Shipment;
 import com.nhutruong.blood.shared.api.ApiResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -21,13 +24,16 @@ public class ShipmentController {
     @PostMapping
     @PreAuthorize("hasAnyRole('MEDICALCENTER', 'STAFF', 'ADMIN')")
     public ApiResponse<ShipmentResponse> create(
-            @RequestParam Long bloodRequestId,
-            @RequestParam String courierName,
-            @RequestParam String courierPhone,
-            @RequestParam(required = false) String notes,
+            @Valid @RequestBody CreateShipmentRequest request,
             @AuthenticationPrincipal User staff
     ) {
-        Shipment shipment = shipmentService.create(bloodRequestId, courierName, courierPhone, notes, staff);
+        Shipment shipment = shipmentService.create(
+                request.bloodRequestId(),
+                request.courierName(),
+                request.courierPhone(),
+                request.notes(),
+                staff
+        );
         return ApiResponse.success("Shipment created", ShipmentResponse.from(shipment));
     }
 
@@ -35,10 +41,10 @@ public class ShipmentController {
     @PreAuthorize("hasAnyRole('MEDICALCENTER', 'STAFF', 'COURIER', 'ADMIN')")
     public ApiResponse<ShipmentResponse> markPickedUp(
             @PathVariable Long id,
-            @RequestParam Double temperature,
+            @Valid @RequestBody PickupRequest request,
             @AuthenticationPrincipal User staff
     ) {
-        Shipment shipment = shipmentService.markPickedUp(id, temperature, staff);
+        Shipment shipment = shipmentService.markPickedUp(id, request.temperature(), staff);
         return ApiResponse.success("Shipment picked up", ShipmentResponse.from(shipment));
     }
 
@@ -46,12 +52,12 @@ public class ShipmentController {
     @PreAuthorize("hasAnyRole('MEDICALCENTER', 'STAFF', 'COURIER', 'ADMIN')")
     public ApiResponse<ShipmentResponse> addCheckpoint(
             @PathVariable Long id,
-            @RequestParam String location,
-            @RequestParam String description,
-            @RequestParam(required = false) Double temperature,
+            @Valid @RequestBody AddCheckpointRequest request,
             @AuthenticationPrincipal User staff
     ) {
-        Shipment shipment = shipmentService.addCheckpoint(id, location, description, temperature, staff);
+        Shipment shipment = shipmentService.addCheckpoint(
+                id, request.location(), request.description(), request.temperature(), staff
+        );
         return ApiResponse.success("Checkpoint added", ShipmentResponse.from(shipment));
     }
 
@@ -59,11 +65,10 @@ public class ShipmentController {
     @PreAuthorize("hasAnyRole('HOSPITAL', 'STAFF', 'ADMIN')")
     public ApiResponse<ShipmentResponse> confirmDelivery(
             @PathVariable Long id,
-            @RequestParam String receivedBy,
-            @RequestParam(required = false) String notes,
+            @Valid @RequestBody DeliveryRequest request,
             @AuthenticationPrincipal User staff
     ) {
-        Shipment shipment = shipmentService.confirmDelivery(id, receivedBy, notes, staff);
+        Shipment shipment = shipmentService.confirmDelivery(id, request.receivedBy(), request.notes(), staff);
         return ApiResponse.success("Delivery confirmed", ShipmentResponse.from(shipment));
     }
 
@@ -81,6 +86,32 @@ public class ShipmentController {
                         .map(ShipmentResponse::from).toList()
         );
     }
+
+    // ---- Request DTOs ------------------------------------------------------------
+
+    public record CreateShipmentRequest(
+            @NotNull(message = "bloodRequestId is required") Long bloodRequestId,
+            @NotBlank(message = "courierName is required") String courierName,
+            @NotBlank(message = "courierPhone is required") String courierPhone,
+            String notes
+    ) {}
+
+    public record PickupRequest(
+            @NotNull(message = "temperature is required") Double temperature
+    ) {}
+
+    public record AddCheckpointRequest(
+            @NotBlank(message = "location is required") String location,
+            @NotBlank(message = "description is required") String description,
+            Double temperature
+    ) {}
+
+    public record DeliveryRequest(
+            @NotBlank(message = "receivedBy is required") String receivedBy,
+            String notes
+    ) {}
+
+    // ---- Response DTO -------------------------------------------------------------
 
     public record ShipmentResponse(
             Long id,
@@ -114,5 +145,7 @@ public class ShipmentController {
         }
     }
 
-    public record CheckpointResponse(String location, String description, String timestamp, Double temperature) {}
+    public record CheckpointResponse(
+            String location, String description, String timestamp, Double temperature
+    ) {}
 }

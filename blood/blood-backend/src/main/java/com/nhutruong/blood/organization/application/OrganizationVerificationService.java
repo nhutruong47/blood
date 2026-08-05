@@ -8,16 +8,17 @@ import com.nhutruong.blood.organization.infrastructure.OrganizationRepository;
 import com.nhutruong.blood.shared.exception.BusinessException;
 import com.nhutruong.blood.shared.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrganizationVerificationService {
+    private static final Logger log = LoggerFactory.getLogger(OrganizationVerificationService.class);
     private final OrganizationRepository organizationRepository;
     private final AuditService auditService;
 

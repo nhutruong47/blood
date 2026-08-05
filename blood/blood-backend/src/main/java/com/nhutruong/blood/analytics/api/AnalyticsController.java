@@ -20,9 +20,11 @@ import java.util.Map;
 /**
  * Lightweight analytics aggregation. The contract is intentionally simple
  * (a single JSON map) so the React analytics page can render without
- * needing a separate endpoint per chart. As the data grows this controller
- * should be split into a dedicated reporting module with materialized
- * projections.
+ * needing a separate endpoint per chart.
+ *
+ * <p>All aggregations are pushed down to the database using {@code GROUP BY}
+ * so we never call {@code findAll().stream()}. The mapper iterates a small
+ * result set: 8 blood-group buckets, 12 months, top 5 centers.
  */
 @RestController
 @RequestMapping("/api/analytics")
@@ -52,20 +54,15 @@ public class AnalyticsController {
         long totalDonations = registrationRepository.count();
         long totalBloodUnits = bloodUnitRepository.count();
         long totalRequests = bloodRequestRepository.count();
-        long emergencyRequests = bloodRequestRepository.findAll().stream()
-                .filter(r -> r.getUrgency() == com.nhutruong.blood.bloodrequest.domain.Urgency.EMERGENCY)
-                .count();
+        long emergencyRequests = bloodRequestRepository.countByUrgency(
+                com.nhutruong.blood.bloodrequest.domain.Urgency.EMERGENCY
+        );
 
-        // Blood type distribution: total units per group (any status).
-        Map<BloodGroup, Long> byGroup = new EnumMap<>(BloodGroup.class);
+        // Blood type distribution: pushed down to DB via GROUP BY.
+        Map<BloodGroup, Long> byGroup = bloodUnitRepository.countByBloodGroup();
         for (BloodGroup g : BloodGroup.values()) {
-            byGroup.put(g, 0L);
+            byGroup.putIfAbsent(g, 0L);
         }
-        bloodUnitRepository.findAll().forEach(unit -> {
-            if (unit.getBloodGroup() != null) {
-                byGroup.merge(unit.getBloodGroup(), 1L, Long::sum);
-            }
-        });
 
         // Last 12 months donations per month (chronological asc).
         Map<String, Long> donationsByMonth = new LinkedHashMap<>();
@@ -75,12 +72,13 @@ public class AnalyticsController {
             String key = target.getYear() + "-" + String.format("%02d", target.getMonthValue());
             donationsByMonth.put(key, 0L);
         }
-        registrationRepository.findAll().forEach(reg -> {
-            if (reg.getDonationDate() == null) return;
-            String key = reg.getDonationDate().getYear() + "-"
-                    + String.format("%02d", reg.getDonationDate().getMonthValue());
-            donationsByMonth.merge(key, 1L, Long::sum);
-        });
+        LocalDate cutoff = now.minusMonths(12);
+        for (Object[] row : registrationRepository.donationsByMonthSince(cutoff)) {
+            int year = ((Number) row[0]).intValue();
+            int month = ((Number) row[1]).intValue();
+            long count = ((Number) row[2]).longValue();
+            donationsByMonth.put(year + "-" + String.format("%02d", month), count);
+        }
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("totalUsers", totalUsers);
@@ -98,16 +96,13 @@ public class AnalyticsController {
     @GetMapping("/top-centers")
     @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN','STAFF','MEDICAL_STAFF','MEDICALCENTER')")
     public ApiResponse<List<Map<String, Object>>> topCenters() {
-        Map<String, Long> byCenter = new java.util.HashMap<>();
-        registrationRepository.findAll().forEach(reg -> {
-            String name = reg.getMedicalCenterName();
-            if (name == null || name.isBlank()) return;
-            byCenter.merge(name, 1L, Long::sum);
-        });
-        return ApiResponse.success(byCenter.entrySet().stream()
-                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
-                .limit(5)
-                .map(e -> Map.<String, Object>of("name", e.getKey(), "donations", e.getValue()))
-                .toList());
+        List<Object[]> rows = registrationRepository.topCentersByRegistrations(5);
+        List<Map<String, Object>> payload = rows.stream()
+                .map(row -> Map.<String, Object>of(
+                        "name", row[0],
+                        "donations", row[1]
+                ))
+                .toList();
+        return ApiResponse.success(payload);
     }
 }

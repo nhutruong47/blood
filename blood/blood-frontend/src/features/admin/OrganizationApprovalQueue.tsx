@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Building, CheckCircle, XCircle, Clock, MapPin, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   useAll as useAllOrganizations,
   useVerify as useVerifyOrganization,
+  useReject as useRejectOrganization,
 } from '@/shared/api/generated/organization-controller/organization-controller';
 
 export function OrganizationApprovalQueue() {
@@ -10,6 +12,10 @@ export function OrganizationApprovalQueue() {
     query: { refetchInterval: 60_000 },
   });
   const verifyMutation = useVerifyOrganization();
+  const rejectMutation = useRejectOrganization();
+
+  const [rejectTarget, setRejectTarget] = useState<{ id: number; name: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   const allOrgs: any[] = (data?.data as any)?.data ?? [];
   // Only show orgs that are still awaiting verification.
@@ -24,6 +30,36 @@ export function OrganizationApprovalQueue() {
       refetch();
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? 'Failed to approve organization');
+    }
+  };
+
+  const openReject = (id: number, name: string) => {
+    setRejectTarget({ id, name });
+    setRejectReason('');
+  };
+
+  const closeReject = () => {
+    setRejectTarget(null);
+    setRejectReason('');
+  };
+
+  const submitReject = async () => {
+    if (!rejectTarget) return;
+    const trimmed = rejectReason.trim();
+    if (trimmed.length < 5) {
+      toast.error('Reason must be at least 5 characters');
+      return;
+    }
+    try {
+      await rejectMutation.mutateAsync({
+        id: rejectTarget.id,
+        data: { reason: trimmed },
+      });
+      toast.success(`Rejected "${rejectTarget.name}"`);
+      closeReject();
+      refetch();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? 'Failed to reject organization');
     }
   };
 
@@ -89,15 +125,15 @@ export function OrganizationApprovalQueue() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => approve(org.id)}
-                    disabled={verifyMutation.isPending}
+                    disabled={verifyMutation.isPending || rejectMutation.isPending}
                     className="flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-60"
                   >
                     <CheckCircle className="w-4 h-4" /> Approve
                   </button>
                   <button
-                    disabled
-                    className="flex items-center gap-1 px-4 py-2 border border-red-300 text-red-600 rounded-lg font-medium opacity-60 cursor-not-allowed"
-                    title="Reject endpoint pending"
+                    onClick={() => openReject(org.id, org.name)}
+                    disabled={verifyMutation.isPending || rejectMutation.isPending}
+                    className="flex items-center gap-1 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 font-medium disabled:opacity-60"
                   >
                     <XCircle className="w-4 h-4" /> Reject
                   </button>
@@ -105,6 +141,52 @@ export function OrganizationApprovalQueue() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {rejectTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={closeReject}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl w-full max-w-md p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold mb-1">Reject organization</h2>
+            <p className="text-sm text-slate-500 mb-4">
+              Rejecting <span className="font-medium">{rejectTarget.name}</span>.
+              The reason will be recorded in the audit log.
+            </p>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Reason <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={4}
+              minLength={5}
+              maxLength={500}
+              placeholder="e.g. License number could not be verified"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={closeReject}
+                disabled={rejectMutation.isPending}
+                className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitReject}
+                disabled={rejectMutation.isPending || rejectReason.trim().length < 5}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-60"
+              >
+                {rejectMutation.isPending ? 'Rejecting…' : 'Confirm reject'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

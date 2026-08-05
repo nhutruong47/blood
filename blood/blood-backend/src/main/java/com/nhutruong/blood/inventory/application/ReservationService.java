@@ -15,7 +15,8 @@ import com.nhutruong.blood.shared.domain.BloodGroup;
 import com.nhutruong.blood.shared.exception.BusinessException;
 import com.nhutruong.blood.shared.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,10 +24,10 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReservationService {
+    private static final Logger log = LoggerFactory.getLogger(ReservationService.class);
     private final BloodUnitRepository bloodUnitRepository;
     private final BloodRequestRepository bloodRequestRepository;
     private final InventoryMovementRepository movementRepository;
@@ -56,21 +57,28 @@ public class ReservationService {
         }
 
         List<BloodUnit> reserved = new ArrayList<>(candidates.subList(0, quantity));
-        for (BloodUnit unit : reserved) {
+
+        // Mark all units as reserved
+        reserved.forEach(unit -> {
             unit.setStatus(BloodUnitStatus.RESERVED);
             unit.setReservedFor(request);
-            bloodUnitRepository.save(unit);
+        });
+        // Batch save — single INSERT/UPDATE round-trip instead of N individual saves
+        bloodUnitRepository.saveAll(reserved);
 
-            InventoryMovement movement = new InventoryMovement();
-            movement.setBloodUnit(unit);
-            movement.setType(InventoryMovementType.RESERVE);
-            movement.setFromStatus(BloodUnitStatus.AVAILABLE);
-            movement.setToStatus(BloodUnitStatus.RESERVED);
-            movement.setReason("Reserved for blood request #" + bloodRequestId);
-            movementRepository.save(movement);
-
-            log.info("Reserved blood unit {} for request #{}", unit.getBagCode(), bloodRequestId);
-        }
+        // Batch-create inventory movements for all reserved units
+        List<InventoryMovement> movements = reserved.stream()
+                .map(unit -> {
+                    InventoryMovement movement = new InventoryMovement();
+                    movement.setBloodUnit(unit);
+                    movement.setType(InventoryMovementType.RESERVE);
+                    movement.setFromStatus(BloodUnitStatus.AVAILABLE);
+                    movement.setToStatus(BloodUnitStatus.RESERVED);
+                    movement.setReason("Reserved for blood request #" + bloodRequestId);
+                    return movement;
+                })
+                .toList();
+        movementRepository.saveAll(movements);
 
         auditService.log(null, "SYSTEM", com.nhutruong.blood.audit.domain.AuditAction.RESERVE,
                 "BloodRequest", String.valueOf(bloodRequestId), "Blood units reserved with pessimistic locking");
@@ -80,23 +88,32 @@ public class ReservationService {
     @Transactional
     public void releaseReservation(Long bloodRequestId, String reason) {
         List<BloodUnit> units = bloodUnitRepository.findByReservedForId(bloodRequestId);
-        for (BloodUnit unit : units) {
+        if (units.isEmpty()) {
+            return;
+        }
+
+        units.forEach(unit -> {
             unit.setStatus(BloodUnitStatus.AVAILABLE);
             unit.setReservedFor(null);
-            bloodUnitRepository.save(unit);
+        });
+        // Batch save — single UPDATE round-trip instead of N individual saves
+        bloodUnitRepository.saveAll(units);
 
-            InventoryMovement movement = new InventoryMovement();
-            movement.setBloodUnit(unit);
-            movement.setType(InventoryMovementType.RELEASE_RESERVATION);
-            movement.setFromStatus(BloodUnitStatus.RESERVED);
-            movement.setToStatus(BloodUnitStatus.AVAILABLE);
-            movement.setReason(reason);
-            movementRepository.save(movement);
-        }
-        if (!units.isEmpty()) {
-            auditService.log(null, "SYSTEM", com.nhutruong.blood.audit.domain.AuditAction.RELEASE,
-                    "BloodRequest", String.valueOf(bloodRequestId), reason);
-        }
+        List<InventoryMovement> movements = units.stream()
+                .map(unit -> {
+                    InventoryMovement movement = new InventoryMovement();
+                    movement.setBloodUnit(unit);
+                    movement.setType(InventoryMovementType.RELEASE_RESERVATION);
+                    movement.setFromStatus(BloodUnitStatus.RESERVED);
+                    movement.setToStatus(BloodUnitStatus.AVAILABLE);
+                    movement.setReason(reason);
+                    return movement;
+                })
+                .toList();
+        movementRepository.saveAll(movements);
+
+        auditService.log(null, "SYSTEM", com.nhutruong.blood.audit.domain.AuditAction.RELEASE,
+                "BloodRequest", String.valueOf(bloodRequestId), reason);
         log.info("Released {} units from request #{}", units.size(), bloodRequestId);
     }
 }

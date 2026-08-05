@@ -271,6 +271,12 @@ export const router = createBrowserRouter([
     ],
   },
 
+  // Redirect /book/:centerId → /donor/book?centerId=:centerId
+  {
+    path: "book/:centerId",
+    element: <Navigate to="donor/book" replace />,
+  },
+
   // Notifications - accessible by all authenticated roles
   {
     path: "notifications",
