@@ -10,8 +10,11 @@ services:
       - "8080:8080"
     environment:
       - DB_URL=jdbc:sqlserver://sqlserver:1433;databaseName=BLOOD;encrypt=true;trustServerCertificate=true
-      - DB_USERNAME=sa
-      - DB_PASSWORD=${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      # blood_app is provisioned by the init-db one-shot service. The app
+      # never connects as sa; DB_PASSWORD (sa's password) stays inside the
+      # init-db service only.
+      - DB_USERNAME=blood_app
+      - DB_PASSWORD=${BLOOD_APP_PASSWORD:?Set BLOOD_APP_PASSWORD in .env}
       - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET (>=32 chars) in .env}
       - JWT_EXPIRATION=3600000          # 1 hour (rotates every hour)
       - CORS_ORIGINS=http://localhost:3000,http://localhost:5173
@@ -21,12 +24,40 @@ services:
     depends_on:
       sqlserver:
         condition: service_healthy
+      init-db:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health/liveness || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 60s
+    networks: [blood]
+
+  init-db:
+    # One-shot provisioning of the dedicated `blood_app` SQL Server login.
+    # Re-runs safely on every container recreate because every statement in
+    # the mounted SQL files is guarded with IF NOT EXISTS / IF SUSER_ID IS NULL.
+    image: mcr.microsoft.com/mssql-tools18:latest
+    container_name: blood-init-db
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      - MSSQL_SA_PASSWORD=${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      - BLOOD_APP_PASSWORD=${BLOOD_APP_PASSWORD:?Set BLOOD_APP_PASSWORD in .env}
+    volumes:
+      - ./blood-backend/db/init:/init:ro
+    entrypoint: ["bash", "-lc"]
+    command:
+      - >-
+        set -euo pipefail;
+        for f in /init/*.sql; do
+          echo "[init-db] applying $$f";
+          /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$$MSSQL_SA_PASSWORD" -C -No -i "$$f" -v BLOOD_APP_PASSWORD="$$BLOOD_APP_PASSWORD";
+        done;
+        echo "[init-db] done";
+    restart: "no"
     networks: [blood]
 
   sqlserver:
@@ -105,6 +136,10 @@ services:
     networks: [blood]
 
 volumes:
+  # sqlserver-data is the durable state of the database itself. The login
+  # `blood_app` is provisioned by the init-db service on every cold start, so
+  # the login survives even if this volume is recreated from scratch.
+  # Operators MUST take regular backups with ./scripts/backup-db.sh.
   sqlserver-data:
   prometheus-data:
   grafana-data:

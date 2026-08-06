@@ -60,6 +60,85 @@ GET /actuator/info             → Application info
 
 ---
 
+## 1.5 Database Login Model (Durable SQL User)
+
+The application **never** connects to SQL Server as `sa`. It uses a dedicated,
+least-privilege login `blood_app` whose password (`BLOOD_APP_PASSWORD`) is
+distinct from the `sa` password (`DB_PASSWORD`). Provisioning happens
+automatically on every cold start via the `init-db` one-shot compose service,
+which runs [blood-backend/db/init/01-create-app-login.sql](../blood-backend/db/init/01-create-app-login.sql)
+against the SQL container using `sqlcmd` and the `sa` password.
+
+### Login matrix
+
+| Login        | Password env var     | Used by                                            | Scope                                  |
+|--------------|----------------------|----------------------------------------------------|----------------------------------------|
+| `sa`         | `DB_PASSWORD`        | `init-db` service, `scripts/backup-db.sh`, `scripts/restore-db.sh`, operator sessions | SQL Server instance administrator (sysadmin) |
+| `blood_app`  | `BLOOD_APP_PASSWORD` | `app` service (Spring Boot)                        | `db_owner` of the `BLOOD` database only |
+
+### First-time setup
+
+```bash
+# 1. Copy the template and set two distinct strong passwords.
+cp .env.example .env
+# Edit .env and set DB_PASSWORD and BLOOD_APP_PASSWORD to different values.
+
+# 2. Start the stack. The init-db service runs once before the app starts.
+docker compose up -d
+
+# 3. Confirm blood_app exists.
+docker compose exec sqlserver /opt/mssql-tools18/bin/sqlcmd \
+    -S localhost -U sa -P "$DB_PASSWORD" -C -No \
+    -Q "SELECT name FROM sys.server_principals WHERE name = 'blood_app'"
+# Expected: one row, name = blood_app
+
+# 4. Confirm the running app connects as blood_app (not sa).
+docker compose logs app | grep -E 'HikariPool|blood-pool' | head
+```
+
+### Rotation procedure
+
+`sa` and `blood_app` rotate independently.
+
+```bash
+# Rotate BLOOD_APP_PASSWORD (the one the app uses)
+# 1. Update .env
+sed -i 's/^BLOOD_APP_PASSWORD=.*/BLOOD_APP_PASSWORD=<new-strong-value>/' .env
+
+# 2. Apply it to the running SQL Server (the init-db script is idempotent
+#    and uses CREATE LOGIN WITH PASSWORD only when the login is absent, so
+#    we must ALTER LOGIN directly here for rotation).
+docker compose exec sqlserver /opt/mssql-tools18/bin/sqlcmd \
+    -S localhost -U sa -P "$DB_PASSWORD" -C -No \
+    -Q "ALTER LOGIN blood_app WITH PASSWORD = N'<new-strong-value>'"
+
+# 3. Restart the app so it picks up the new password from .env.
+docker compose restart app
+```
+
+```bash
+# Rotate DB_PASSWORD (the sa password)
+# 1. Update .env
+sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=<new-strong-value>/' .env
+
+# 2. Recreate the sqlserver container so MSSQL_SA_PASSWORD takes effect on
+#    cold start. The named volume `sqlserver-data` is preserved.
+docker compose up -d --force-recreate sqlserver
+
+# 3. Re-run init-db so it can authenticate as sa with the new password.
+docker compose up init-db
+```
+
+### Out of scope (tracked for follow-up hardening)
+
+- Replacing `db_owner` with a custom `db_app_role` that grants only the DDL
+  subset Flyway actually needs.
+- TLS / certificate pinning for SQL Server connections.
+- Managed-SQL cutover (Azure SQL, AWS RDS) — the `blood_app` login shape is
+  portable, but provider-specific cutover steps are not covered here.
+
+---
+
 ## 2. Deployment Procedures
 
 ### 2.1 Pre-deployment Checklist
@@ -255,46 +334,64 @@ groups:
 
 ### 4.2 Backup Commands
 
+Use the helper script `scripts/backup-db.sh` — it runs `sqlcmd` inside the
+`blood-sqlserver` container, copies the resulting `.bak` file to
+`./backups/BLOOD-<UTC timestamp>.bak` on the host, and cleans up the
+in-container file. The host only needs `bash` and `docker`; no `sqlcmd`
+install is required.
+
 ```bash
-# Full SQL Server backup
-docker compose exec sqlserver /opt/mssql-tools/bin/sqlcmd \
-  -S localhost -U sa -P "$SA_PASSWORD" \
-  -Q "BACKUP DATABASE blood_prod TO DISK='/var/opt/mssql/backup/blood_full_$(date +%Y%m%d).bak' WITH COMPRESSION, CHECKSUM"
+# Take a full backup (reads DB_PASSWORD from .env)
+./scripts/backup-db.sh
 
-# Point-in-time recovery
-docker compose exec sqlserver /opt/mssql-tools/bin/sqlcmd \
-  -S localhost -U sa -P "$SA_PASSWORD" \
-  -Q "RESTORE DATABASE blood_prod FROM DISK='/var/opt/mssql/backup/blood_full_YYYYMMDD.bak' WITH NORECOVERY"
+# Custom output directory
+BACKUP_DIR=/srv/backups ./scripts/backup-db.sh
+```
 
-# Verify backup integrity
-docker compose exec sqlserver /opt/mssql-tools/bin/sqlcmd \
-  -S localhost -U sa -P "$SA_PASSWORD" \
-  -Q "RESTORE VERIFYONLY FROM DISK='/var/opt/mssql/backup/blood_full_YYYYMMM.bak'"
+For one-off `sqlcmd` invocations (e.g. integrity checks), use the canonical
+path and the correct database name (`BLOOD`, not `blood_prod`):
+
+```bash
+docker compose exec sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P "$DB_PASSWORD" -C -No \
+  -Q "RESTORE VERIFYONLY FROM DISK = N'/var/opt/mssql/backups/BLOOD-LATEST.bak'"
 ```
 
 ### 4.3 Recovery Procedures
 
+Use `scripts/restore-db.sh <path-to-.bak>` for the standard restore path.
+The script copies the backup into the container, drops the existing `BLOOD`
+database (with `SINGLE_USER WITH ROLLBACK IMMEDIATE`), and runs
+`RESTORE DATABASE BLOOD ... WITH RECOVERY`. After restore, restart the app
+so Flyway re-validates the schema.
+
 ```bash
-# Point-in-time recovery
-# 1. Stop the application
+# 1. Take a defensive backup of the current state first
+./scripts/backup-db.sh
+
+# 2. Restore from the chosen .bak file
+./scripts/restore-db.sh ./backups/BLOOD-20260806T091000Z.bak
+
+# 3. Restart the app
+docker compose restart app
+curl -sf https://api.blood.example.com/actuator/health/liveness
+```
+
+For point-in-time recovery, stop the app, restore with `NORECOVERY`, then
+bring the database online:
+
+```bash
 docker compose stop app
 
-# 2. Restore to point in time
-docker compose exec sqlserver /opt/mssql-tools/bin/sqlcmd \
-  -S localhost -U sa -P "$SA_PASSWORD" \
-  -Q "RESTORE DATABASE blood_prod FROM DISK='/var/opt/mssql/backup/blood_full_YYYYMMDD.bak' \
-      WITH NORECOVERY, STOPATMARK = 'YYYY-MM-DD HH:MM:SS'"
+docker compose exec sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P "$DB_PASSWORD" -C -No \
+  -Q "RESTORE DATABASE [BLOOD] FROM DISK = N'/var/opt/mssql/backups/BLOOD-FULL.bak' WITH NORECOVERY"
 
-# 3. Bring database online
-docker compose exec sqlserver /opt/mssql-tools/bin/sqlcmd \
-  -S localhost -U sa -P "$SA_PASSWORD" \
-  -Q "RESTORE DATABASE blood_prod WITH RECOVERY"
+docker compose exec sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P "$DB_PASSWORD" -C -No \
+  -Q "RESTORE LOG [BLOOD] FROM DISK = N'/var/opt/mssql/backups/BLOOD-LOG.trn' WITH RECOVERY, STOPATMARK = 'YYYY-MM-DD HH:MM:SS'"
 
-# 4. Start the application
 docker compose up -d app
-
-# 5. Verify
-curl -sf https://api.blood.example.com/actuator/health
 ```
 
 ### 4.4 Disaster Recovery (RTO/RPO)
@@ -303,8 +400,16 @@ curl -sf https://api.blood.example.com/actuator/health
 |---------|-----|-----|-----------|
 | Single backend instance down | 5 min | 0 | Auto-restart via container orchestrator |
 | Database corruption | 30 min | 15 min | Restore from backup, replay transaction logs |
+| `sqlserver-data` volume lost | 15 min | last backup | `docker compose up -d --force-recreate sqlserver` recreates the container; the `init-db` service re-provisions `blood_app`; Flyway rebuilds the schema; `./scripts/restore-db.sh` repopulates the data from the latest `.bak`. Worst case = empty `BLOOD` (logged in `docker compose logs init-db`). |
 | Full DC outage | 4 hours | 1 hour | Failover to secondary region |
 | Ransomware | 24 hours | 15 min | Restore from offline backup |
+
+The key durability invariant is: **the `blood_app` login is not stored in
+the `sqlserver-data` volume**; it is recreated by the `init-db` one-shot
+service on every cold start from
+[blood-backend/db/init/01-create-app-login.sql](../blood-backend/db/init/01-create-app-login.sql).
+This means a wiped volume does not break login provisioning — only the data,
+which is recovered from `.bak` files written by `./scripts/backup-db.sh`.
 
 ---
 
